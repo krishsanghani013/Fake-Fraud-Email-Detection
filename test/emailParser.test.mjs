@@ -24,10 +24,19 @@ import {
   extractSenderIdentities,
   analyzeSenderIdentity
 } from '../src/lib/senderIdentity.js';
+import {
+  classifyIp,
+  extractIpsFromText,
+  cleanHostname,
+  parseReceivedHeader,
+  calculateHopLatencies,
+  analyzeHopContinuity,
+  analyzeEmailTransmission
+} from '../src/lib/emailTransmission.js';
 import { POST } from '../src/app/api/parse-eml/route.js';
 
 console.log('====================================================');
-console.log('RUNNING PHASE 1, 2, 3 & 4 FORENSIC TEST SUITE');
+console.log('RUNNING PHASE 1, 2, 3, 4 & 5 FORENSIC TEST SUITE');
 console.log('====================================================\n');
 
 let passedTests = 0;
@@ -1297,6 +1306,415 @@ async function runAll() {
     assert.equal(result.data.senderIdentity.identities.from, null);
     assert.equal(result.data.senderIdentity.comparisons.every((c) => c.status === 'unavailable'), true);
     assert.equal(result.data.senderIdentity.findings.length, 0);
+  });
+
+  // ===========================================================================
+  // PHASE 5: HEADER TRANSMISSION & HOP ANALYSIS TESTS
+  // ===========================================================================
+  console.log('\n--- PHASE 5: HEADER TRANSMISSION & HOP ANALYSIS TESTS ---');
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 1: One simple Received header extraction
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 1: One simple Received header extraction', () => {
+    const raw = [
+      'Received: from mail.example.com by mx.example.net with ESMTPS id ABC123; Sat, 12 Sep 2026 10:15:30 +0000',
+      'From: sender@example.com',
+      'Subject: Single hop test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.ok(result.data.transmission);
+    assert.equal(result.data.transmission.received.length, 1);
+    assert.equal(result.data.transmission.hops.length, 1);
+    assert.equal(result.data.transmission.summary.hopCount, 1);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.from.host, 'mail.example.com');
+    assert.equal(hop.by.host, 'mx.example.net');
+    assert.equal(hop.with, 'ESMTPS');
+    assert.equal(hop.id, 'ABC123');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 2: Multiple Received headers preserved
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 2: Multiple Received headers preserved', () => {
+    const raw = [
+      'Received: from relay2.example.com by mx.final.net with ESMTPS id DEF456; Sat, 12 Sep 2026 10:15:35 +0000',
+      'Received: from relay1.example.com by relay2.example.com with ESMTP id ABC123; Sat, 12 Sep 2026 10:15:30 +0000',
+      'Received: from client.local by relay1.example.com with SMTP; Sat, 12 Sep 2026 10:15:20 +0000',
+      'From: user@example.com',
+      'Subject: Multiple hops test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.transmission.received.length, 3);
+    assert.equal(result.data.transmission.hops.length, 3);
+    assert.equal(result.data.transmission.summary.hopCount, 3);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 3: Folded Received header treated as one header
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 3: Folded Received header treated as one header', () => {
+    const raw = [
+      'Received: from mail.example.com',
+      '    (mail.example.com [192.0.2.10])',
+      '    by mx.example.net',
+      '    with ESMTPS',
+      '    id FOLD123;',
+      '    Sat, 12 Sep 2026 10:15:30 +0000',
+      'From: sender@example.com',
+      'Subject: Folded header test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.transmission.received.length, 1);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.from.host, 'mail.example.com');
+    assert.equal(hop.from.ip, '192.0.2.10');
+    assert.equal(hop.by.host, 'mx.example.net');
+    assert.equal(hop.id, 'FOLD123');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 4: Extract from host and IP
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 4: Extract from host and IP', () => {
+    const raw = [
+      'Received: from mail.sender.org (outbound.sender.org [203.0.113.50]) by mx.dest.com; Sat, 12 Sep 2026 10:00:00 +0000',
+      'From: sender@sender.org',
+      'Subject: From test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.from.host, 'mail.sender.org');
+    assert.equal(hop.from.ip, '203.0.113.50');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 5: Extract by host
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 5: Extract by host', () => {
+    const raw = [
+      'Received: from mail.example.com by gateway.target.net with ESMTP; Sat, 12 Sep 2026 10:00:00 +0000',
+      'From: user@example.com',
+      'Subject: By test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.by.host, 'gateway.target.net');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 6: Extract with protocol
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 6: Extract with protocol', () => {
+    const raw = [
+      'Received: by mx.target.net with ESMTPSA id 999; Sat, 12 Sep 2026 10:00:00 +0000',
+      'From: user@example.com',
+      'Subject: Protocol test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.with, 'ESMTPSA');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 7: Extract id
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 7: Extract id', () => {
+    const raw = [
+      'Received: from a by b with SMTP id <unique-queue-id-12345@b>; Sat, 12 Sep 2026 10:00:00 +0000',
+      'From: user@example.com',
+      'Subject: ID test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.id, '<unique-queue-id-12345@b>');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 8: Extract for recipient
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 8: Extract for recipient', () => {
+    const raw = [
+      'Received: from a by b for <target.user@domain.com>; Sat, 12 Sep 2026 10:00:00 +0000',
+      'From: user@example.com',
+      'Subject: For test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.for, '<target.user@domain.com>');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 9: Extract IPv4 address from Received
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 9: Extract IPv4 address from Received', () => {
+    const raw = [
+      'Received: from mail.example.com ([198.51.100.25]) by mx.example.com; Sat, 12 Sep 2026 10:00:00 +0000',
+      'From: user@example.com',
+      'Subject: IPv4 test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.ips.some((ip) => ip.address === '198.51.100.25' && ip.version === 4), true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 10: Extract IPv6 address from Received
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 10: Extract IPv6 address from Received', () => {
+    const raw = [
+      'Received: from mail.example.com ([2001:db8::cafe:1]) by mx.example.com; Sat, 12 Sep 2026 10:00:00 +0000',
+      'From: user@example.com',
+      'Subject: IPv6 test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.ips.some((ip) => ip.address === '2001:db8::cafe:1' && ip.version === 6), true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 11: Extract timestamp and normalize to ISO
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 11: Extract timestamp and normalize to ISO', () => {
+    const raw = [
+      'Received: by mx.example.com; Sat, 12 Sep 2026 10:15:30 +0000',
+      'From: user@example.com',
+      'Subject: Timestamp test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.timestamp.raw, 'Sat, 12 Sep 2026 10:15:30 +0000');
+    assert.equal(hop.timestamp.normalized, '2026-09-12T10:15:30.000Z');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 12: Received header ordering (newest-vs-oldest)
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 12: Received header ordering (newest-vs-oldest)', () => {
+    const raw = [
+      'Received: by final.destination.net; Sat, 12 Sep 2026 10:15:35 +0000',
+      'Received: by intermediate.relay.net; Sat, 12 Sep 2026 10:15:25 +0000',
+      'Received: by origin.sender.org; Sat, 12 Sep 2026 10:15:10 +0000',
+      'From: user@example.com',
+      'Subject: Order test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const tx = result.data.transmission;
+    // In raw received array: index 0 is top (final), index 2 is bottom (origin)
+    assert.equal(tx.received[0].by.host, 'final.destination.net');
+    assert.equal(tx.received[0].headerIndex, 0);
+    assert.equal(tx.received[0].chronologicalIndex, 2);
+
+    assert.equal(tx.received[2].by.host, 'origin.sender.org');
+    assert.equal(tx.received[2].headerIndex, 2);
+    assert.equal(tx.received[2].chronologicalIndex, 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 13: Construct chronological hop chain
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 13: Construct chronological hop chain', () => {
+    const raw = [
+      'Received: by hop3.net; Sat, 12 Sep 2026 10:15:30 +0000',
+      'Received: by hop2.net; Sat, 12 Sep 2026 10:15:20 +0000',
+      'Received: by hop1.net; Sat, 12 Sep 2026 10:15:10 +0000',
+      'From: user@example.com',
+      'Subject: Chain test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hops = result.data.transmission.hops;
+    assert.equal(hops[0].by.host, 'hop1.net');
+    assert.equal(hops[0].chronologicalIndex, 0);
+    assert.equal(hops[1].by.host, 'hop2.net');
+    assert.equal(hops[1].chronologicalIndex, 1);
+    assert.equal(hops[2].by.host, 'hop3.net');
+    assert.equal(hops[2].chronologicalIndex, 2);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 14: Calculate positive transmission latency
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 14: Calculate positive transmission latency', () => {
+    const raw = [
+      'Received: by hop2.net; Sat, 12 Sep 2026 10:15:25 +0000',
+      'Received: by hop1.net; Sat, 12 Sep 2026 10:15:10 +0000',
+      'From: user@example.com',
+      'Subject: Latency test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const tx = result.data.transmission;
+    assert.equal(tx.latencies.length, 1);
+    assert.equal(tx.latencies[0].seconds, 15);
+    assert.equal(tx.latencies[0].status, 'valid');
+    assert.equal(tx.findings.some((f) => f.id === 'NEGATIVE_TRANSMISSION_LATENCY'), false);
+    assert.equal(tx.summary.totalLatencySeconds, 15);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 15: Detect negative transmission latency
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 15: Detect negative transmission latency', () => {
+    const raw = [
+      'Received: by hop2.net; Sat, 12 Sep 2026 10:15:10 +0000', // Newer hop says 10:15:10
+      'Received: by hop1.net; Sat, 12 Sep 2026 10:15:30 +0000', // Older hop says 10:15:30
+      'From: user@example.com',
+      'Subject: Negative latency test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const tx = result.data.transmission;
+    assert.equal(tx.latencies.length, 1);
+    assert.equal(tx.latencies[0].seconds, -20);
+    assert.equal(tx.latencies[0].status, 'negative');
+    const finding = tx.findings.find((f) => f.id === 'NEGATIVE_TRANSMISSION_LATENCY');
+    assert.ok(finding);
+    assert.equal(finding.evidence.latencySeconds, -20);
+    assert.ok(finding.evidence.olderTimestamp);
+    assert.ok(finding.evidence.newerTimestamp);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 16: Missing timestamp handled without false anomaly
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 16: Missing timestamp handled without false anomaly', () => {
+    const raw = [
+      'Received: from a by b with SMTP', // No semicolon/timestamp
+      'Received: from c by d with SMTP; Sat, 12 Sep 2026 10:15:00 +0000',
+      'From: user@example.com',
+      'Subject: Missing timestamp test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const tx = result.data.transmission;
+    assert.equal(tx.latencies.length, 1);
+    assert.equal(tx.latencies[0].status, 'unavailable');
+    assert.equal(tx.latencies[0].seconds, null);
+    assert.equal(tx.findings.some((f) => f.id === 'NEGATIVE_TRANSMISSION_LATENCY'), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 17: Multiple IPs and hostname evidence preservation
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 17: Multiple IPs and hostname evidence preservation', () => {
+    const raw = [
+      'Received: from relay.net ([192.0.2.1] [198.51.100.2]) by mx.com ([203.0.113.3]); Sat, 12 Sep 2026 10:00:00 +0000',
+      'From: user@example.com',
+      'Subject: Multiple IP preservation test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const hop = result.data.transmission.hops[0];
+    assert.equal(hop.ips.length, 3);
+    assert.equal(hop.ips.some((ip) => ip.address === '192.0.2.1'), true);
+    assert.equal(hop.ips.some((ip) => ip.address === '198.51.100.2'), true);
+    assert.equal(hop.ips.some((ip) => ip.address === '203.0.113.3'), true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 18: Offline verification (no network/DNS calls)
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 18: Offline verification (no network/DNS calls)', () => {
+    assert.equal(classifyIp('192.168.1.1', 4), 'private');
+    assert.equal(classifyIp('10.0.0.1', 4), 'private');
+    assert.equal(classifyIp('172.20.0.1', 4), 'private');
+    assert.equal(classifyIp('127.0.0.1', 4), 'loopback');
+    assert.equal(classifyIp('169.254.1.1', 4), 'link-local');
+    assert.equal(classifyIp('8.8.8.8', 4), 'public');
+    assert.equal(classifyIp('::1', 6), 'loopback');
+    assert.equal(classifyIp('fe80::1', 6), 'link-local');
+    assert.equal(classifyIp('2001:db8::1', 6), 'public');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 19: Malformed timestamp error detection
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 19: Malformed timestamp error detection', () => {
+    const raw = [
+      'Received: by mx.example.com; DefinitelyNotAValidDateString123',
+      'From: user@example.com',
+      'Subject: Invalid date test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const tx = result.data.transmission;
+    const finding = tx.findings.find((f) => f.id === 'RECEIVED_TIMESTAMP_PARSE_ERROR');
+    assert.ok(finding);
+    assert.equal(finding.evidence.rawTimestamp, 'DefinitelyNotAValidDateString123');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 5 - TEST 20: Hop continuity mismatch detection
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 5 - TEST 20: Hop continuity mismatch detection', () => {
+    const raw = [
+      'Received: from completely-unrelated.org by dest.com; Sat, 12 Sep 2026 10:15:30 +0000',
+      'Received: from origin.com by relay.trusted.com; Sat, 12 Sep 2026 10:15:20 +0000',
+      'From: user@example.com',
+      'Subject: Continuity test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const tx = result.data.transmission;
+    const finding = tx.findings.find((f) => f.id === 'RECEIVED_HOP_HOST_MISMATCH');
+    assert.ok(finding);
+    assert.equal(finding.evidence.priorByHost, 'relay.trusted.com');
+    assert.equal(finding.evidence.nextFromHost, 'completely-unrelated.org');
   });
 
   // ---------------------------------------------------------------------------

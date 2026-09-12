@@ -24,18 +24,18 @@ A standard-compliant, zero-retention RFC 5322 email ingestion, validation, and f
                             ▼
                  NORMALIZED EMAIL OBJECT
                             │
-            ┌───────────────┼───────────────┐
-            ▼               ▼               ▼
-┌──────────────────┐┌──────────────────┐┌──────────────────┐
-│ARTIFACT EXTRACTOR││AUTHENTICATION    ││ SENDER IDENTITY  │
-│(emailArtifacts.js││  (emailAuth.js)  ││(senderIdentity.js│
-└─────────┬────────┘└─────────┬────────┘└─────────┬────────┘
-          │                   │                   │
-    ┌─────┼─────┐       ┌─────┼─────┐             │
-    ▼     ▼     ▼       ▼     ▼     ▼             ▼
-  URLs   IPs  Domains  SPF   DKIM  DMARC   CONSISTENCY MATRIX
-(Norm.) (v4/6) (Sub.)         │            & FINDINGS LOG
-                              ▼            (From vs Reply-To,
+            ┌───────────────┼───────────────┬───────────────┐
+            ▼               ▼               ▼               ▼
+┌──────────────────┐┌──────────────────┐┌──────────────────┐┌──────────────────┐
+│ARTIFACT EXTRACTOR││AUTHENTICATION    ││ SENDER IDENTITY  ││MAIL TRANSMISSION │
+│(emailArtifacts.js││  (emailAuth.js)  ││(senderIdentity.js││(emailTransmission│
+└─────────┬────────┘└─────────┬────────┘└─────────┬────────┘└─────────┬────────┘
+          │                   │                   │                   │
+    ┌─────┼─────┐       ┌─────┼─────┐             │             ┌─────┼─────┐
+    ▼     ▼     ▼       ▼     ▼     ▼             ▼             ▼     ▼     ▼
+  URLs   IPs  Domains  SPF   DKIM  DMARC   CONSISTENCY MATRIX  HOPS LATENCY ANOMALIES
+(Norm.) (v4/6) (Sub.)         │            & FINDINGS LOG     (0->N) (Sec.) (Negative/
+                              ▼            (From vs Reply-To,                Mismatch)
                              ARC            Return-Path, SPF,
                                             DKIM, DMARC)
                             │
@@ -50,7 +50,7 @@ A standard-compliant, zero-retention RFC 5322 email ingestion, validation, and f
 
 ## 2. Canonical Data Models
 
-### Normalized Email Object (Phase 1, 2, 3 & 4)
+### Normalized Email Object (Phase 1, 2, 3, 4 & 5)
 Every parsed email produces the exact canonical structure:
 ```json
 {
@@ -73,7 +73,8 @@ Every parsed email produces the exact canonical structure:
   "headers": {
     "all": [
       { "name": "From", "value": "sender@example.com" },
-      { "name": "To", "value": "recipient@example.com" }
+      { "name": "To", "value": "recipient@example.com" },
+      { "name": "Received", "value": "from mail.example.com by mx.example.net; ..." }
     ]
   },
   "body": {
@@ -97,7 +98,113 @@ Every parsed email produces the exact canonical structure:
   },
   "artifacts": { ... },
   "authentication": { ... },
-  "senderIdentity": { ... }
+  "senderIdentity": { ... },
+  "transmission": { ... }
+}
+```
+
+### Canonical Transmission Object (Phase 5)
+Located under `data.transmission`:
+```json
+{
+  "received": [
+    {
+      "headerIndex": 0,
+      "chronologicalIndex": 1,
+      "raw": "from relay.net by mx.dest.com with ESMTPS id XYZ789; Sat, 12 Sep 2026 10:15:30 +0000",
+      "from": {
+        "host": "relay.net",
+        "ip": null,
+        "raw": "relay.net"
+      },
+      "by": {
+        "host": "mx.dest.com",
+        "ip": null,
+        "raw": "mx.dest.com with ESMTPS id XYZ789"
+      },
+      "with": "ESMTPS",
+      "id": "XYZ789",
+      "for": null,
+      "timestamp": {
+        "raw": "Sat, 12 Sep 2026 10:15:30 +0000",
+        "normalized": "2026-09-12T10:15:30.000Z"
+      },
+      "ips": []
+    }
+  ],
+  "hops": [
+    {
+      "headerIndex": 1,
+      "chronologicalIndex": 0,
+      "raw": "from origin.com ([198.51.100.25]) by relay.net with ESMTP; Sat, 12 Sep 2026 10:15:15 +0000",
+      "from": {
+        "host": "origin.com",
+        "ip": "198.51.100.25",
+        "raw": "origin.com ([198.51.100.25])"
+      },
+      "by": {
+        "host": "relay.net",
+        "ip": null,
+        "raw": "relay.net with ESMTP"
+      },
+      "with": "ESMTP",
+      "id": null,
+      "for": null,
+      "timestamp": {
+        "raw": "Sat, 12 Sep 2026 10:15:15 +0000",
+        "normalized": "2026-09-12T10:15:15.000Z"
+      },
+      "ips": [
+        {
+          "address": "198.51.100.25",
+          "version": 4,
+          "type": "public"
+        }
+      ]
+    },
+    {
+      "headerIndex": 0,
+      "chronologicalIndex": 1,
+      "raw": "from relay.net by mx.dest.com with ESMTPS id XYZ789; Sat, 12 Sep 2026 10:15:30 +0000",
+      "from": {
+        "host": "relay.net",
+        "ip": null,
+        "raw": "relay.net"
+      },
+      "by": {
+        "host": "mx.dest.com",
+        "ip": null,
+        "raw": "mx.dest.com with ESMTPS id XYZ789"
+      },
+      "with": "ESMTPS",
+      "id": "XYZ789",
+      "for": null,
+      "timestamp": {
+        "raw": "Sat, 12 Sep 2026 10:15:30 +0000",
+        "normalized": "2026-09-12T10:15:30.000Z"
+      },
+      "ips": []
+    }
+  ],
+  "latencies": [
+    {
+      "fromHopIndex": 0,
+      "toHopIndex": 1,
+      "fromHeaderIndex": 1,
+      "toHeaderIndex": 0,
+      "fromTimestamp": "2026-09-12T10:15:15.000Z",
+      "toTimestamp": "2026-09-12T10:15:30.000Z",
+      "seconds": 15,
+      "status": "valid"
+    }
+  ],
+  "findings": [],
+  "summary": {
+    "hopCount": 2,
+    "ipCount": 1,
+    "timestampCount": 2,
+    "totalLatencySeconds": 15
+  }
 }
 ```
 
@@ -105,70 +212,9 @@ Every parsed email produces the exact canonical structure:
 Located under `data.senderIdentity`:
 ```json
 {
-  "identities": {
-    "from": {
-      "address": "alice@example.com",
-      "domain": "example.com",
-      "raw": "Alice <alice@example.com>"
-    },
-    "replyTo": [
-      {
-        "address": "support@evil.com",
-        "domain": "evil.com",
-        "raw": "support@evil.com"
-      }
-    ],
-    "returnPath": {
-      "address": "bounce@mailer.example.net",
-      "domain": "mailer.example.net",
-      "raw": "<bounce@mailer.example.net>"
-    },
-    "spf": [
-      {
-        "domain": "example.com",
-        "source": "Authentication-Results",
-        "raw": "mx.example.com; spf=pass smtp.mailfrom=example.com"
-      }
-    ],
-    "dkim": [
-      {
-        "domain": "example.com",
-        "selector": "s1",
-        "source": "DKIM-Signature",
-        "raw": "v=1; a=rsa-sha256; d=example.com; ..."
-      }
-    ],
-    "dmarc": [
-      {
-        "headerFrom": "example.com",
-        "domain": "example.com",
-        "source": "Authentication-Results",
-        "raw": "mx.example.com; dmarc=pass header.from=example.com"
-      }
-    ]
-  },
-  "comparisons": [
-    {
-      "type": "from_vs_reply_to",
-      "status": "mismatch",
-      "sourceA": { "type": "From", "value": "alice@example.com", "domain": "example.com" },
-      "sourceB": { "type": "Reply-To", "value": "support@evil.com", "domain": "evil.com" },
-      "evidence": { "fromRaw": "Alice <alice@example.com>", "replyToRaw": "support@evil.com" },
-      "message": "From domain (example.com) and Reply-To domain (evil.com) do not match."
-    }
-  ],
-  "findings": [
-    {
-      "id": "FROM_REPLY_TO_DOMAIN_MISMATCH",
-      "type": "sender_identity_mismatch",
-      "comparison": "from_vs_reply_to",
-      "detected": true,
-      "sourceA": { "type": "From", "value": "alice@example.com", "domain": "example.com" },
-      "sourceB": { "type": "Reply-To", "value": "support@evil.com", "domain": "evil.com" },
-      "evidence": { "fromRaw": "Alice <alice@example.com>", "replyToRaw": "support@evil.com" },
-      "message": "From domain (example.com) and Reply-To domain (evil.com) do not match."
-    }
-  ]
+  "identities": { ... },
+  "comparisons": [ ... ],
+  "findings": [ ... ]
 }
 ```
 
@@ -181,11 +227,7 @@ Located under `data.authentication`:
   "spf": { "results": [ ... ] },
   "dkim": { "signatures": [ ... ], "results": [ ... ] },
   "dmarc": { "results": [ ... ] },
-  "arc": {
-    "seals": [ ... ],
-    "messageSignatures": [ ... ],
-    "authenticationResults": [ ... ]
-  }
+  "arc": { ... }
 }
 ```
 
@@ -196,11 +238,7 @@ Located under `data.artifacts`:
   "urls": [ ... ],
   "ips": [ ... ],
   "domains": [ ... ],
-  "senderDomains": {
-    "from": ["example.com"],
-    "replyTo": ["external.example"],
-    "returnPath": ["example.com"]
-  }
+  "senderDomains": { ... }
 }
 ```
 
@@ -208,48 +246,52 @@ Located under `data.artifacts`:
 
 ## 3. Extraction & Normalization Specifications
 
-### Sender Identity & Header Consistency Forensics (Phase 4)
+### Header Transmission & Hop Analysis (Phase 5)
 - **Forensic Principle**:
-  - Phase 4 performs deterministic sender identity consistency analysis across message headers and authentication records.
-  - An observed mismatch is a **forensic finding**, NOT independent proof that an email is malicious or fraudulent. Legitimate mailing lists, transactional relays, and enterprise bounce-handling services routinely exhibit domain variances.
-  - Zero risk scoring, zero confidence scores, and zero automated fraud classifications are produced.
-- **Exact Normalized Domain Comparison**:
-  - Case-insensitive comparison (`toLowerCase()`).
-  - Normalizes trailing periods (`example.com.` -> `example.com`).
-  - Strict exact-domain rule: does NOT treat subdomains as equivalent (`mail.example.com` != `example.com`).
-  - No substring matching or arbitrary domain guessing.
-- **Comparisons Performed**:
-  1. **From ↔ Reply-To**: Evaluates every Reply-To address independently. Emits `FROM_REPLY_TO_DOMAIN_MISMATCH`.
-  2. **From ↔ Return-Path**: Evaluates envelope return path against visible sender. Emits `FROM_RETURN_PATH_DOMAIN_MISMATCH`.
-  3. **From ↔ SPF**: Evaluates explicit SPF authenticated domain(s). Emits `FROM_SPF_DOMAIN_MISMATCH`.
-  4. **From ↔ DKIM**: Evaluates all DKIM signing domains (`d=`) independently. Emits `FROM_DKIM_DOMAIN_MISMATCH`.
-  5. **From ↔ DMARC**: Evaluates DMARC reported `header.from` domain. Emits `FROM_DMARC_HEADER_FROM_MISMATCH`.
+  - Phase 5 analyzes server-reported `Received:` headers as **observed transport evidence**. It does not independently verify the identity or physical location of any server or IP address.
+  - Received headers represent claims made by MTAs along the transmission route. Observed inconsistencies (such as negative latency or host discrepancies) are recorded as deterministic findings and NOT proof of forgery or maliciousness.
+- **Header Ordering & Chronological Hop Reconstruction**:
+  - As messages travel across the Internet, each receiving MTA prepends a `Received:` header to the top of the message.
+  - Consequently, the topmost header (Header Index 0) is the newest hop (final destination), while the bottommost header (Header Index N-1) is the oldest hop (originating or earliest recorded MTA).
+  - Chronological path: Hop 0 (oldest origin) -> Hop 1 -> Hop N-1 (newest destination).
+- **Component Parsing per Hop**:
+  - `from`: Hostname, explicit IP address, and raw clause.
+  - `by`: Receiving MTA hostname, IP address, and raw clause.
+  - `with`: Transmission protocol (`ESMTPS`, `ESMTP`, `SMTP`, `HTTP`).
+  - `id`: MTA message queue identifier.
+  - `for`: Recipient envelope address (`<user@example.com>`).
+  - `timestamp`: Original raw string and ISO 8601 normalized representation.
+  - `ips`: All valid IPv4 and IPv6 addresses extracted from the hop.
+- **Local IP Classification**:
+  - Purely local, offline classification: `private` (RFC 1918 / ULA), `loopback` (127.0.0.0/8, ::1), `link-local` (169.254.0.0/16, fe80::/10), `unspecified`, and `public`. Zero external queries.
+- **Latency & Anomaly Detection**:
+  - **Positive Latency**: Normal transit delay in seconds between consecutive chronological hops.
+  - **`NEGATIVE_TRANSMISSION_LATENCY`**: Triggered when a subsequent hop reports an earlier timestamp than the preceding hop (typically indicating server clock skew).
+  - **`RECEIVED_TIMESTAMP_PARSE_ERROR`**: Triggered when a timestamp clause fails standard date parsing.
+  - **`RECEIVED_HOP_HOST_MISMATCH`**: Triggered when the receiving MTA of hop N does not match the reporting sender of hop N+1.
 - **Missing Data Handling**:
-  - When an optional header or authentication domain is absent, the comparison status is recorded as `unavailable`. It is **never** manufactured into a false mismatch.
-- **Evidence Traceability**:
-  - Every finding links directly back to `fromRaw`, `replyToRaw`, `returnPathRaw`, `spfRaw`, or `dkimRaw`.
+  - Missing timestamps or optional clauses result in `status: 'unavailable'` and do NOT trigger false anomaly findings.
+
+### Sender Identity & Header Consistency Forensics (Phase 4)
+- Deterministic sender identity comparisons across `From`, `Reply-To`, `Return-Path`, `SPF`, `DKIM`, and `DMARC`.
+- Emits stable finding IDs (`FROM_REPLY_TO_DOMAIN_MISMATCH`, etc.) without risk scoring.
 
 ### Email Authentication Forensics (Phase 3)
 - Strictly extracts reported/observed evidence from email headers without cryptographic verification.
 - Parses `Authentication-Results`, `Received-SPF`, `DKIM-Signature`, `DMARC`, and `ARC` chain instances.
-- Preserves raw values, supports multiple occurrences, and reconciles conflicting SPF results without picking winners.
 
-### URL Extraction & Normalization (Phase 2)
-- Extracts and normalizes URLs from text, HTML, and `<a href="...">` attributes.
-- Strips default ports (`:80`, `:443`), cleans trailing sentence punctuation, and lowercases schemes and hostnames.
-
-### IP Address Extraction & Validation (Phase 2)
-- Strict octet range validation (`0–255`) for IPv4.
-- Validates IPv6 hex groups and compressed syntax while rejecting timestamps.
+### URL & IP Extraction (Phase 2)
+- Normalizes URLs (:80/:443 port removal, scheme lowercasing) and validates IPv4/IPv6 ranges strictly.
 
 ---
 
 ## 4. Security & Forensic Integrity
 
 - **Untrusted Input**: All email contents, headers, and authentication claims are treated as untrusted attacker-controlled data.
-- **No Remote Network Requests**: Zero external HTTP queries, zero DNS lookups, zero WHOIS, zero VirusTotal/URLhaus lookups.
+- **Zero Network Calls**: Zero external HTTP queries, zero DNS lookups, zero reverse DNS, zero WHOIS, zero GeoIP, zero VirusTotal/URLhaus lookups.
 - **No Cryptographic Verification**: System audits reported headers and does not perform RSA/Ed25519 signature verification.
-- **No Risk Scoring or Fraud Classifications**: No risk scores or malicious verdicts are calculated in Phase 4.
+- **No AI / LLM Classification**: 100% deterministic logic; Gemini / LLM models are not utilized.
+- **No Risk Scoring or Fraud Classifications**: No risk scores or malicious verdicts are calculated.
 - **No JavaScript Execution**: Email HTML is never executed in the browser context.
 
 ---
@@ -260,7 +302,7 @@ Located under `data.artifacts`:
 - **Request Body**:
   ```json
   {
-    "emlContent": "From: sender@example.com\r\nReply-To: support@evil.com\r\n\r\nMessage body"
+    "emlContent": "Received: from mail.example.com by mx.dest.com; Sat, 12 Sep 2026 10:00:00 +0000\r\nFrom: sender@example.com\r\n\r\nMessage body"
   }
   ```
 - **Response** (HTTP 200):
@@ -276,7 +318,8 @@ Located under `data.artifacts`:
       "raw": { "size": 128 },
       "artifacts": { ... },
       "authentication": { ... },
-      "senderIdentity": { ... }
+      "senderIdentity": { ... },
+      "transmission": { ... }
     },
     "warnings": []
   }
@@ -291,17 +334,17 @@ Run all test suites with:
 npm test
 ```
 
-### Covered Test Cases (57 Total Assertions):
+### Covered Test Cases (77 Total Assertions):
 #### Phase 1: Core RFC 5322 & MIME (Tests 1–11)
 1. Simple plain-text email.
 2. HTML email.
-3. Multipart/alternative email (extracts text/plain and text/html).
-4. Email with attachment metadata (filename, content type, exact base64 decoded size).
-5. Email containing folded/multiline headers.
-6. Email containing duplicate headers (multiple `Received:` hops).
-7. Email using CRLF (`\r\n`) line endings.
-8. Email using LF (`\n`) line endings.
-9. Email with missing optional headers.
+3. Multipart/alternative email.
+4. Email with attachment metadata.
+5. Folded/multiline headers.
+6. Duplicate headers (multiple `Received:` hops).
+7. CRLF line endings.
+8. LF line endings.
+9. Missing optional headers.
 10. Malformed email handling (empty string, headerless input, missing boundary).
 11. Backend API route verification (`POST /api/parse-eml`).
 
@@ -311,12 +354,12 @@ npm test
 14. Multiple distinct URLs extraction.
 15. Duplicate URL deduplication between text and HTML.
 16. HTML `<a href="...">` extraction with source tagging.
-17. URL normalization (default ports 80/443 removal, scheme/host lowercasing, path preservation).
+17. URL normalization (:80/:443 port removal, scheme/host lowercasing).
 18. IPv4 extraction from `Received` headers.
 19. IPv6 extraction from `Received` headers.
 20. Sender domains extraction (`From`, `Reply-To`, `Return-Path`).
 21. Invalid IP rejection (`999.999.999.999`, timestamp `10:30:45`).
-22. Multiple domains with subdomain preservation (`login.example.com`, `mail.example.com`).
+22. Multiple domains with subdomain preservation (`login.example.com`).
 23. URL punctuation cleanup (stripping trailing periods and commas).
 
 #### Phase 3: Email Authentication Forensics (Tests 1–15)
@@ -337,21 +380,43 @@ npm test
 38. Mixed Header Casing case-insensitivity.
 
 #### Phase 4: Sender Identity & Header Consistency (Tests 1–17)
-39. **TEST 1 — From and Reply-To same domain**: Evaluates `match`, no mismatch finding.
-40. **TEST 2 — From and Reply-To different domains**: Emits `FROM_REPLY_TO_DOMAIN_MISMATCH` with evidence.
-41. **TEST 3 — From and Return-Path same domain**: Evaluates `match`, no mismatch finding.
-42. **TEST 4 — From and Return-Path different domains**: Emits `FROM_RETURN_PATH_DOMAIN_MISMATCH`.
-43. **TEST 5 — From and SPF domain same**: Evaluates `match` against SPF authenticated domain.
-44. **TEST 6 — From and SPF domain different**: Emits `FROM_SPF_DOMAIN_MISMATCH`.
-45. **TEST 7 — From and DKIM d= same**: Evaluates `match` against DKIM signing domain.
-46. **TEST 8 — From and DKIM d= different**: Emits `FROM_DKIM_DOMAIN_MISMATCH`.
-47. **TEST 9 — Multiple DKIM signatures evaluated independently**: Preserves independent matches and mismatches.
-48. **TEST 10 — Multiple Reply-To addresses evaluated independently**: Evaluates each address without collapsing.
-49. **TEST 11 — Case-insensitive domain comparison**: `Example.COM` vs `example.com` -> `match`.
-50. **TEST 12 — Trailing-dot domain normalization**: `example.com.` vs `example.com` -> `match`.
-51. **TEST 13 — Subdomain mismatch (exact-domain rule)**: `mail.example.com` vs `example.com` -> `mismatch`.
-52. **TEST 14 — Missing SPF domain**: Recorded as `unavailable`, NOT a mismatch.
-53. **TEST 15 — Missing DKIM domain**: Recorded as `unavailable`, NOT a mismatch.
-54. **TEST 16 — From vs DMARC header.from mismatch**: Emits `FROM_DMARC_HEADER_FROM_MISMATCH`.
-55. **TEST 17 — Missing From header handled gracefully**: Returns `null` from identity and `unavailable` comparisons without crashing.
+39. From and Reply-To same domain.
+40. From and Reply-To different domains (`FROM_REPLY_TO_DOMAIN_MISMATCH`).
+41. From and Return-Path same domain.
+42. From and Return-Path different domains (`FROM_RETURN_PATH_DOMAIN_MISMATCH`).
+43. From and SPF domain same.
+44. From and SPF domain different (`FROM_SPF_DOMAIN_MISMATCH`).
+45. From and DKIM d= same.
+46. From and DKIM d= different (`FROM_DKIM_DOMAIN_MISMATCH`).
+47. Multiple DKIM signatures evaluated independently.
+48. Multiple Reply-To addresses evaluated independently.
+49. Case-insensitive domain comparison.
+50. Trailing-dot domain normalization.
+51. Subdomain mismatch (`mail.example.com` vs `example.com`).
+52. Missing SPF domain recorded as `unavailable`.
+53. Missing DKIM domain recorded as `unavailable`.
+54. From vs DMARC header.from mismatch (`FROM_DMARC_HEADER_FROM_MISMATCH`).
+55. Missing From header handled gracefully.
+
+#### Phase 5: Header Transmission & Hop Analysis (Tests 1–20)
+56. **TEST 1 — One simple Received header extraction**: Verifies extraction of from, by, with, id.
+57. **TEST 2 — Multiple Received headers preserved**: Preserves multiple Received headers without collapsing.
+58. **TEST 3 — Folded Received header treated as one**: Multiline folded Received header handled seamlessly.
+59. **TEST 4 — Extract from host and IP**: Extracts both host and bracketed IP from `from` clause.
+60. **TEST 5 — Extract by host**: Extracts receiving MTA host from `by` clause.
+61. **TEST 6 — Extract with protocol**: Extracts protocol (`ESMTPSA`).
+62. **TEST 7 — Extract id**: Extracts queue identifier.
+63. **TEST 8 — Extract for recipient**: Extracts envelope recipient address.
+64. **TEST 9 — Extract IPv4 address from Received**: Strict IPv4 validation within Received header.
+65. **TEST 10 — Extract IPv6 address from Received**: Strict bracketed and standalone IPv6 extraction.
+66. **TEST 11 — Extract timestamp and normalize to ISO**: Parses RFC date-time into ISO string.
+67. **TEST 12 — Received header ordering**: Verifies topmost header is newest (chronological N-1) and bottommost is oldest (chronological 0).
+68. **TEST 13 — Construct chronological hop chain**: Verifies hops array is ordered oldest to newest.
+69. **TEST 14 — Calculate positive transmission latency**: Calculates transit seconds between consecutive hops.
+70. **TEST 15 — Detect negative transmission latency**: Emits `NEGATIVE_TRANSMISSION_LATENCY` for clock skew / backward time.
+71. **TEST 16 — Missing timestamp handled gracefully**: Records latency as `unavailable` without false anomalies.
+72. **TEST 17 — Multiple IPs and hostname evidence preservation**: Preserves multiple IPs across a single hop.
+73. **TEST 18 — Offline verification**: Verifies local IP classification (`private`, `loopback`, `link-local`, `public`).
+74. **TEST 19 — Malformed timestamp error detection**: Emits `RECEIVED_TIMESTAMP_PARSE_ERROR` for unparseable date text.
+75. **TEST 20 — Hop continuity mismatch detection**: Emits `RECEIVED_HOP_HOST_MISMATCH` when prior `by` and next `from` hosts disagree.
 

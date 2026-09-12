@@ -8,6 +8,7 @@
 import { extractArtifacts } from './emailArtifacts.js';
 import { extractAuthenticationEvidence } from './emailAuth.js';
 import { analyzeSenderIdentity } from './senderIdentity.js';
+import { analyzeEmailTransmission } from './emailTransmission.js';
 
 
 /**
@@ -448,6 +449,9 @@ export function parseRawEmail(rawInput) {
 
     // Phase 4: Sender Identity & Header Consistency Forensics
     normalizedEmail.senderIdentity = analyzeSenderIdentity(normalizedEmail);
+
+    // Phase 5: Header Transmission & Hop Analysis
+    normalizedEmail.transmission = analyzeEmailTransmission(normalizedEmail);
 
     return {
       success: true,

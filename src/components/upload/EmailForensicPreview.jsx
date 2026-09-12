@@ -24,14 +24,16 @@ import {
   UserCheck,
   AlertTriangle,
   Fingerprint,
-  MinusCircle
+  MinusCircle,
+  Route,
+  ArrowDown
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useToast } from '../ui/Toast';
 
 export function EmailForensicPreview({ emailData }) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'identity' | 'auth' | 'artifacts' | 'body' | 'mime' | 'attachments' | 'headers'
+  const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'identity' | 'transmission' | 'auth' | 'artifacts' | 'body' | 'mime' | 'attachments' | 'headers'
   const [copied, setCopied] = useState(false);
   const [headerFilter, setHeaderFilter] = useState('');
 
@@ -62,6 +64,13 @@ export function EmailForensicPreview({ emailData }) {
       identities: { from: null, replyTo: [], returnPath: null, spf: [], dkim: [], dmarc: [] },
       comparisons: [],
       findings: []
+    },
+    transmission = {
+      received: [],
+      hops: [],
+      latencies: [],
+      findings: [],
+      summary: { hopCount: 0, ipCount: 0, timestampCount: 0, totalLatencySeconds: null }
     }
   } = emailData;
 
@@ -102,6 +111,8 @@ export function EmailForensicPreview({ emailData }) {
             <span>{artifacts.ips.length} IPs</span>
             <span>•</span>
             <span>{authentication.dkim.signatures.length} DKIM Signatures</span>
+            <span>•</span>
+            <span>{transmission.hops?.length || 0} Hops</span>
             <span>•</span>
             <span className={senderIdentity.findings?.length > 0 ? 'text-warningYellow font-bold' : ''}>
               {senderIdentity.findings?.length || 0} Identity Mismatches
@@ -149,6 +160,17 @@ export function EmailForensicPreview({ emailData }) {
           }`}
         >
           <UserCheck className="w-4 h-4" /> Sender Identity ({senderIdentity.comparisons?.length || 0})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('transmission')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'transmission'
+              ? 'bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/40 shadow-glowBlue'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <Route className="w-4 h-4" /> Mail Route ({transmission.hops?.length || 0})
         </button>
 
         <button
@@ -558,7 +580,252 @@ export function EmailForensicPreview({ emailData }) {
           </div>
         )}
 
-        {/* TAB 3: AUTHENTICATION EVIDENCE (PHASE 3) */}
+        {/* TAB 3: TRANSMISSION & MAIL ROUTE (PHASE 5) */}
+        {activeTab === 'transmission' && (
+          <div className="space-y-6">
+            {/* Forensic Principle Notice */}
+            <div className="p-4 rounded-2xl bg-primaryBlue/10 border border-primaryBlue/30 text-xs flex items-start gap-3">
+              <Info className="w-4 h-4 text-primaryBlue flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <div className="font-semibold text-textPrimary font-mono">
+                  Observed Mail Transmission Route (Received Header Chain)
+                </div>
+                <div className="text-textSecondary leading-relaxed font-sans">
+                  The hops below are reconstructed from observed <code>Received:</code> headers in chronological transmission sequence (oldest to newest).
+                  Received headers are server-reported claims recorded by MTAs along the path; observed anomalies (such as negative latency or host discrepancies) are recorded as forensic findings and not independent proof of forgery or maliciousness.
+                </div>
+              </div>
+            </div>
+
+            {/* Transmission Summary Card */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Total Hops:</span>
+                <div className="text-lg font-bold text-textPrimary">{transmission.summary?.hopCount || 0}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Observed IPs:</span>
+                <div className="text-lg font-bold text-cyanAccent">{transmission.summary?.ipCount || 0}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Valid Timestamps:</span>
+                <div className="text-lg font-bold text-textPrimary">{transmission.summary?.timestampCount || 0}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Total Transit Time:</span>
+                <div className="text-lg font-bold text-purpleAccent">
+                  {transmission.summary?.totalLatencySeconds !== null && transmission.summary?.totalLatencySeconds !== undefined
+                    ? `${transmission.summary.totalLatencySeconds}s`
+                    : 'N/A'}
+                </div>
+              </div>
+            </div>
+
+            {/* Chronological Hop Chain Visualizer */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <Route className="w-4 h-4 text-cyanAccent" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    Chronological Mail Route (Origin → Destination)
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-textSecondary">
+                  Oldest (Hop 0) to Newest (Hop {Math.max(0, (transmission.hops?.length || 1) - 1)})
+                </span>
+              </div>
+
+              {transmission.hops?.length === 0 ? (
+                <p className="text-xs text-textSecondary italic">No Received headers found in email.</p>
+              ) : (
+                <div className="space-y-4 relative">
+                  {transmission.hops.map((hop, idx) => {
+                    const latency = transmission.latencies?.find((l) => l.fromHopIndex === hop.chronologicalIndex);
+
+                    return (
+                      <div key={idx} className="space-y-3">
+                        <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2.5 py-0.5 rounded-full bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/40 text-[11px] font-bold">
+                                Chronological Hop #{hop.chronologicalIndex}
+                              </span>
+                              <span className="text-[10px] text-textSecondary">
+                                (Raw Header #{hop.headerIndex})
+                              </span>
+                              {hop.chronologicalIndex === 0 && (
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-cyanAccent font-semibold">
+                                  Earliest Reported Hop
+                                </span>
+                              )}
+                              {hop.chronologicalIndex === transmission.hops.length - 1 && (
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-successGreen font-semibold">
+                                  Final Receiving Hop
+                                </span>
+                              )}
+                            </div>
+
+                            {hop.timestamp?.normalized && (
+                              <div className="text-[11px] text-textSecondary flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-primaryBlue" />
+                                <span>{hop.timestamp.normalized}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] pt-1">
+                            <div>
+                              <span className="text-textSecondary">From Host: </span>
+                              <span className="font-semibold text-textPrimary">{hop.from?.host || 'None reported'}</span>
+                              {hop.from?.ip && (
+                                <span className="text-cyanAccent ml-1.5 font-mono">[{hop.from.ip}]</span>
+                              )}
+                            </div>
+
+                            <div>
+                              <span className="text-textSecondary">Received By: </span>
+                              <span className="font-semibold text-textPrimary">{hop.by?.host || 'None reported'}</span>
+                              {hop.by?.ip && (
+                                <span className="text-cyanAccent ml-1.5 font-mono">[{hop.by.ip}]</span>
+                              )}
+                            </div>
+
+                            <div>
+                              <span className="text-textSecondary">Protocol / With: </span>
+                              <span className="text-textPrimary">{hop.with || 'None'}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-textSecondary">Message / Queue ID: </span>
+                              <span className="text-textPrimary break-all">{hop.id || 'None'}</span>
+                            </div>
+
+                            {hop.for && (
+                              <div className="md:col-span-2">
+                                <span className="text-textSecondary">For Recipient: </span>
+                                <span className="text-textPrimary">{hop.for}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {hop.ips?.length > 0 && (
+                            <div className="pt-2 border-t border-white/5 flex flex-wrap items-center gap-2 text-[10px]">
+                              <span className="text-textSecondary">Extracted IPs:</span>
+                              {hop.ips.map((ipObj, ipIdx) => (
+                                <span
+                                  key={ipIdx}
+                                  className="px-2 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-cyanAccent flex items-center gap-1"
+                                >
+                                  <span>{ipObj.address}</span>
+                                  <span className="text-[9px] uppercase px-1 rounded bg-white/10 text-textSecondary">
+                                    {ipObj.type}
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="text-[10px] text-textSecondary/70 break-all pt-1">
+                            <strong>Raw:</strong> {hop.raw}
+                          </div>
+                        </div>
+
+                        {/* Latency Transition to Next Hop */}
+                        {latency && idx < transmission.hops.length - 1 && (
+                          <div className="flex items-center justify-center my-1">
+                            <div
+                              className={`px-3 py-1 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1.5 ${
+                                latency.status === 'valid'
+                                  ? 'bg-primaryBlue/10 text-primaryBlue border border-primaryBlue/30'
+                                  : latency.status === 'negative'
+                                  ? 'bg-warningYellow/20 text-warningYellow border border-warningYellow/40 font-bold'
+                                  : 'bg-white/5 text-textSecondary border border-white/10'
+                              }`}
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                              {latency.status === 'valid' && (
+                                <span>Transit Latency: +{latency.seconds}s</span>
+                              )}
+                              {latency.status === 'negative' && (
+                                <span>Negative Latency Anomaly: {latency.seconds}s</span>
+                              )}
+                              {latency.status === 'unavailable' && (
+                                <span>Transit Latency: Unavailable (Missing Timestamp)</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+
+            {/* Transmission Findings Log */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-warningYellow" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    Transmission Findings ({transmission.findings?.length || 0})
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-textSecondary">Deterministic Route Anomalies</span>
+              </div>
+
+              {transmission.findings?.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-successGreen/10 border border-successGreen/20 text-xs font-mono text-successGreen flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>No transmission route anomalies or negative latencies detected.</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {transmission.findings.map((f, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-2xl bg-warningYellow/10 border border-warningYellow/30 text-xs font-mono space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-textPrimary text-xs">{f.id}</span>
+                        <span className="text-[10px] font-bold text-warningYellow uppercase px-2 py-0.5 rounded bg-warningYellow/20 border border-warningYellow/30">
+                          Observed Anomaly
+                        </span>
+                      </div>
+
+                      <p className="text-textSecondary leading-relaxed">{f.message}</p>
+
+                      {f.evidence && (
+                        <div className="p-2.5 rounded-xl bg-surfacePrimary/80 border border-borderSubtle text-[10px] space-y-1 break-all">
+                          {f.evidence.latencySeconds !== undefined && (
+                            <div><strong>Observed Latency:</strong> {f.evidence.latencySeconds}s</div>
+                          )}
+                          {f.evidence.olderTimestamp && (
+                            <div><strong>Earlier Timestamp:</strong> {f.evidence.olderTimestamp}</div>
+                          )}
+                          {f.evidence.newerTimestamp && (
+                            <div><strong>Later Timestamp:</strong> {f.evidence.newerTimestamp}</div>
+                          )}
+                          {f.evidence.rawTimestamp && (
+                            <div><strong>Raw Timestamp:</strong> {f.evidence.rawTimestamp}</div>
+                          )}
+                          {f.evidence.priorByHost && (
+                            <div><strong>Prior By Host:</strong> {f.evidence.priorByHost}</div>
+                          )}
+                          {f.evidence.nextFromHost && (
+                            <div><strong>Next From Host:</strong> {f.evidence.nextFromHost}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* TAB 4: AUTHENTICATION EVIDENCE (PHASE 3) */}
         {activeTab === 'auth' && (
           <div className="space-y-6">
             {/* Forensic Principle Notice */}
