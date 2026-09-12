@@ -422,10 +422,15 @@ export function inspectEmailDeterministic(text) {
 
   // Determine Classification and Risk Level
   let classification = 'legitimate';
-  if (riskScore >= 65 || (hasVerificationCta && hasSecurityAlert) || hasFinancialFraud) {
+  if (
+    riskScore >= 60 ||
+    hasVerificationCta ||
+    hasFinancialFraud ||
+    (hasExternalVerificationUrl && (referencedBrand || hasSecurityAlert))
+  ) {
     classification = 'fraudulent';
     riskScore = Math.max(75, Math.min(98, riskScore));
-  } else if (riskScore >= 25 || indicators.length >= 2) {
+  } else if (riskScore >= 25 || indicators.length >= 1) {
     classification = 'suspicious';
     riskScore = Math.max(35, Math.min(68, riskScore));
   } else {
@@ -507,54 +512,68 @@ export async function inspectEmail(emailText, options = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-      model
-    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const candidateModels = [
+    model,
+    'gemini-3.5-flash',
+    'gemini-flash-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.7-flash'
+  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
-    const promptText = USER_PROMPT_TEMPLATE(sanitized);
+  for (const currentModel of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        currentModel
+      )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: promptText }]
+      const promptText = USER_PROMPT_TEMPLATE(sanitized);
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: promptText }]
+            }
+          ],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
           }
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1
-        }
-      })
-    });
+        })
+      });
 
-    clearTimeout(timeoutId);
+      if (res.status === 429 || res.status === 503 || res.status === 404) {
+        console.warn(`[AI Inspect] Gemini model ${currentModel} returned HTTP ${res.status} (quota/availability). Trying next model in pool...`);
+        continue;
+      }
 
-    if (!res.ok) {
-      console.warn(`[AI Inspect] Gemini model ${model} HTTP status ${res.status}. Engaging deterministic fallback.`);
-      return inspectEmailDeterministic(sanitized);
+      if (!res.ok) {
+        console.warn(`[AI Inspect] Gemini model ${currentModel} HTTP status ${res.status}. Trying next model...`);
+        continue;
+      }
+
+      const payload = await res.json();
+      const rawText = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!rawText) continue;
+
+      const parsed = parseGeminiJsonResponse(rawText);
+      clearTimeout(timeoutId);
+      return normalizeInspectionResult(parsed, { engine: 'gemini-api', model: currentModel });
+    } catch (err) {
+      if (err.name === 'AbortError') break;
+      console.warn(`[AI Inspect] Gemini call failed for ${currentModel}:`, err.message || err);
     }
-
-    const payload = await res.json();
-    const rawText = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!rawText) {
-      return inspectEmailDeterministic(sanitized);
-    }
-
-    const parsed = parseGeminiJsonResponse(rawText);
-    return normalizeInspectionResult(parsed, { engine: 'gemini-api', model });
-  } catch (err) {
-    clearTimeout(timeoutId);
-    console.warn('[AI Inspect] Live Gemini call failed:', err.message || err, '. Engaging deterministic fallback.');
-    return inspectEmailDeterministic(sanitized);
   }
+
+  clearTimeout(timeoutId);
+  return inspectEmailDeterministic(sanitized);
 }
 
 /**

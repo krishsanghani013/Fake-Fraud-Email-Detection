@@ -985,77 +985,76 @@ export async function generateAiAnalysis(emailData, options = {}) {
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-      model
-    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const candidateModels = [
+      model,
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+      'gemini-3-flash-preview',
+      'gemini-3.7-flash'
+    ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: promptText }]
-          }
-        ],
-        systemInstruction: {
-          parts: [{ text: systemInstruction }]
-        },
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1
+    let lastError = null;
+    let payload = null;
+    let successfulModel = model;
+
+    for (const currentModel of candidateModels) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+          currentModel
+        )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: promptText }]
+              }
+            ],
+            systemInstruction: {
+              parts: [{ text: systemInstruction }]
+            },
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.1
+            }
+          })
+        });
+
+        if (response.status === 429 || response.status === 503 || response.status === 404) {
+          console.warn(`[AI Analysis] Gemini model ${currentModel} returned HTTP ${response.status}. Trying next candidate in pool...`);
+          lastError = `HTTP ${response.status}`;
+          continue;
         }
-      })
-    });
+
+        if (!response.ok) {
+          console.warn(`[AI Analysis] Gemini model ${currentModel} HTTP error ${response.status}. Trying next candidate in pool...`);
+          lastError = `HTTP ${response.status}`;
+          continue;
+        }
+
+        payload = await response.json();
+        successfulModel = currentModel;
+        break;
+      } catch (err) {
+        if (err.name === 'AbortError') break;
+        lastError = err.message;
+        console.warn(`[AI Analysis] Gemini call failed for ${currentModel}:`, err.message);
+      }
+    }
 
     clearTimeout(timeoutId);
 
-    if (response.status === 429) {
+    if (!payload) {
       if (options.allowFallback !== false) {
         return generateDeterministicFallbackAnalysis(evidencePackage, {
           model,
-          reason: 'Gemini API rate limit reached (HTTP 429). Offline deterministic engine engaged.'
-        });
-      }
-
-      return {
-        status: AI_STATUS.RATE_LIMITED,
-        model,
-        generatedAt,
-        error: 'Gemini rate limit exceeded.',
-        summary: 'Gemini API rate limit reached. Deterministic forensic analysis remains authoritative.',
-        assessment: {
-          riskScore: evidencePackage.risk.totalScore,
-          riskLevel: evidencePackage.risk.level,
-          confidence: 'LOW'
-        }
-      };
-    }
-
-    if (!response.ok) {
-      let apiErrorDetail = '';
-      try {
-        const errPayload = await response.json();
-        apiErrorDetail = errPayload?.error?.message || '';
-      } catch {
-        // Ignored if response is not JSON
-      }
-
-      const isModelNotFound = response.status === 404;
-      const errorMsg = apiErrorDetail
-        ? `Gemini API returned HTTP status ${response.status}: ${apiErrorDetail}`
-        : `Gemini API returned HTTP status ${response.status}.`;
-
-      if (options.allowFallback !== false) {
-        return generateDeterministicFallbackAnalysis(evidencePackage, {
-          model,
-          reason: isModelNotFound
-            ? `Model '${model}' unavailable on API key. Offline deterministic engine engaged.`
-            : `Gemini API returned HTTP ${response.status}. Offline deterministic engine engaged.`
+          reason: `Gemini API candidate pool unavailable (${lastError || 'exhausted'}). Offline deterministic engine engaged.`
         });
       }
 
@@ -1063,10 +1062,8 @@ export async function generateAiAnalysis(emailData, options = {}) {
         status: AI_STATUS.ERROR,
         model,
         generatedAt,
-        error: errorMsg,
-        summary: isModelNotFound
-          ? `Model '${model}' was not found or is unavailable on this Gemini API key. Verify GEMINI_MODEL in .env.local.`
-          : `Gemini API error (HTTP ${response.status}). Deterministic forensic analysis remains authoritative.`,
+        error: `Gemini API model pool unavailable: ${lastError || 'All models exhausted'}`,
+        summary: 'Gemini API candidate pool unavailable. Deterministic forensic analysis remains authoritative.',
         assessment: {
           riskScore: evidencePackage.risk.totalScore,
           riskLevel: evidencePackage.risk.level,
@@ -1075,7 +1072,6 @@ export async function generateAiAnalysis(emailData, options = {}) {
       };
     }
 
-    const payload = await response.json();
     const rawText = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!rawText) {
@@ -1148,7 +1144,7 @@ export async function generateAiAnalysis(emailData, options = {}) {
 
     return {
       status: AI_STATUS.AVAILABLE,
-      model,
+      model: successfulModel,
       generatedAt,
       fallbackEngaged: false,
       ...validation.data

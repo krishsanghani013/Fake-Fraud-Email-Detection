@@ -32,6 +32,7 @@ export default function AIInspectConsole({ inspectionData, emailText }) {
     urgencyIndex = 65,
     primaryThreatVector = 'BEC Wire Transfer Scheme',
     indicators = [],
+    textAnnotations = [],
     summary = '',
     recommendation = '',
     evidenceChain = null,
@@ -40,6 +41,82 @@ export default function AIInspectConsole({ inspectionData, emailText }) {
   } = inspectionData;
 
   const displayText = emailText || inspectionData.emailText || '';
+
+  // Render highlighted spans for detected anomalies in email text
+  const renderAnnotatedText = () => {
+    const rawAnnotations = inspectionData.textAnnotations || textAnnotations || [];
+    if (!displayText || rawAnnotations.length === 0) {
+      return displayText;
+    }
+
+    const valid = rawAnnotations
+      .filter((a) => {
+        if (!a || typeof a.text !== 'string' || !a.text) return false;
+        if (typeof a.startIndex !== 'number' || a.startIndex < 0) {
+          const foundIndex = displayText.toLowerCase().indexOf(a.text.toLowerCase());
+          if (foundIndex !== -1) {
+            a.startIndex = foundIndex;
+            a.endIndex = foundIndex + a.text.length;
+            return true;
+          }
+          return false;
+        }
+        return a.startIndex >= 0 && a.endIndex <= displayText.length && a.startIndex < a.endIndex;
+      })
+      .sort((a, b) => a.startIndex - b.startIndex);
+
+    const nonOverlapping = [];
+    let lastEnd = 0;
+    for (const ann of valid) {
+      if (ann.startIndex >= lastEnd) {
+        nonOverlapping.push(ann);
+        lastEnd = ann.endIndex;
+      }
+    }
+
+    if (nonOverlapping.length === 0) {
+      return displayText;
+    }
+
+    const elements = [];
+    let currentIndex = 0;
+
+    nonOverlapping.forEach((ann, idx) => {
+      if (ann.startIndex > currentIndex) {
+        elements.push(displayText.slice(currentIndex, ann.startIndex));
+      }
+
+      const colorClasses = {
+        red: 'bg-dangerRed/25 text-dangerRed border border-dangerRed/50 font-semibold px-1 py-0.5 rounded',
+        purple: 'bg-purpleAccent/25 text-purple-300 border border-purpleAccent/50 font-semibold px-1 py-0.5 rounded',
+        orange: 'bg-orange-500/25 text-orange-300 border border-orange-500/50 font-semibold px-1 py-0.5 rounded',
+        amber: 'bg-amber-500/25 text-amber-300 border border-amber-500/50 font-semibold px-1 py-0.5 rounded'
+      };
+
+      const appliedClass = colorClasses[ann.color] || colorClasses.red;
+
+      elements.push(
+        <mark
+          key={`ann-${idx}`}
+          title={`${ann.label}: ${ann.text}`}
+          className={`inline-block my-0.5 transition-all cursor-help ${appliedClass}`}
+        >
+          {displayText.slice(ann.startIndex, ann.endIndex)}
+          <span className="ml-1 text-[9px] uppercase px-1 py-0.2 rounded bg-black/60 text-white font-sans font-normal border border-white/20">
+            {ann.label}
+          </span>
+        </mark>
+      );
+
+      currentIndex = ann.endIndex;
+    });
+
+    if (currentIndex < displayText.length) {
+      elements.push(displayText.slice(currentIndex));
+    }
+
+    return elements;
+  };
 
   // Reason cards from indicators
   const reasoningCards = indicators.map((ind, idx) => ({
@@ -145,7 +222,7 @@ export default function AIInspectConsole({ inspectionData, emailText }) {
           </div>
 
           <div className="p-5 rounded-2xl bg-surfaceSecondary border border-borderSubtle font-mono text-xs leading-relaxed text-textPrimary overflow-x-auto whitespace-pre-wrap select-text">
-            {displayText}
+            {renderAnnotatedText()}
           </div>
 
           <div className="p-4 rounded-xl bg-purpleAccent/10 border border-purpleAccent/30 text-xs text-textSecondary flex items-start gap-2.5">

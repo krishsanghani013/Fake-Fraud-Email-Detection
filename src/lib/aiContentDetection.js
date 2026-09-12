@@ -1,20 +1,37 @@
 /**
- * Phase 9 — Forensic AI-Generated Email Content Detection Engine
+ * Phase 9 — Forensic AI-Generated & Threat Content Detection Engine
  * 
- * Multi-Signal Forensic Architecture:
- * 1. Stylometric & Statistical Metrics (Deterministic):
- *    - Burstiness ($CV = \sigma / \mu$): Measures sentence length rhythm variance. Low variance indicates LLM generation.
- *    - Perplexity & Predictability Proxy: Evaluates token frequency distributions and n-gram smoothing.
- *    - Lexical Diversity: Type-Token Ratio (TTR) & vocabulary variety.
- *    - Structural Symmetry: Paragraph and clause length uniformity.
- *    - Forensic LLM Hallmarks: 50+ classic synthetic transition markers, prompt residues, and robotic formulaic scaffolding.
- * 2. Semantic Computational Linguistics (Google Gemini 3.6 Flash):
- *    - Evaluates syntactic smoothing, discourse coherence, emotional cadence, and pragmatic intent.
- * 3. Hybrid Ensemble Aggregator:
- *    - Combines statistical metrics + semantic evaluation.
- *    - Generates sentence-by-sentence heatmap probabilities (0% - 100%).
- * 4. Resilient Offline Fallback:
- *    - Fully functional offline with 0ms network latency when API is offline or times out.
+ * Dual-Matrix Forensic Architecture:
+ * 
+ * MATRIX DIMENSION 1: AUTHORSHIP MATRIX (AI-Generated vs Human-Authored)
+ * - Stylometric & Statistical Metrics (Deterministic):
+ *   - Burstiness ($CV = \sigma / \mu$): Measures sentence length rhythm variance. Low variance indicates LLM generation.
+ *   - Perplexity & Predictability Proxy: Evaluates token frequency distributions and n-gram smoothing.
+ *   - Lexical Diversity: Type-Token Ratio (TTR) & vocabulary variety.
+ *   - Structural Symmetry: Paragraph and clause length uniformity.
+ *   - Forensic LLM Hallmarks: 50+ classic synthetic transition markers, prompt residues, and robotic formulaic scaffolding.
+ * - Semantic Computational Linguistics (Google Gemini 3.6 Flash):
+ *   - Evaluates syntactic smoothing, discourse coherence, emotional cadence, and pragmatic intent.
+ * 
+ * MATRIX DIMENSION 2: DECEPTION & THREAT MATRIX (Fake / Harmful vs Legitimate / Safe)
+ * - Threat & Deception Heuristics (Deterministic):
+ *   - Credential Harvesting: Solicits logins, password resets, verification portals.
+ *   - Urgency & Extortion Pretext: Coercive account suspension warnings, countdowns, artificial deadlines.
+ *   - Financial Fraud & BEC: Unauthorized wire requests, banking routing changes, gift cards, invoice diversions.
+ *   - Brand & Authority Impersonation: Mimicking PayPal, Microsoft, Google Workspace, IT Administration, Executive Office.
+ *   - Benign Workplace Indicators: Natural conversational cues, meeting links, project updates that reduce false alarms.
+ * - Deep Semantic Intent Classification (Google Gemini 3.6 Flash):
+ *   - Analyzes whether context is deceptive (Fake), harmful (Phishing / Scam), or authentic (Legitimate).
+ * 
+ * SYNTHESIS: UNIFIED QUAD-MATRIX FORENSIC VERDICT
+ * - AI_GENERATED_HARMFUL: Automated AI Spear-Phishing / Cyber Attack.
+ * - AI_GENERATED_LEGITIMATE: AI-Assisted Legitimate Communication (Marketing / Newsletter / Internal Draft).
+ * - HUMAN_AUTHORED_HARMFUL: Manual Social Engineering / BEC / Targeted Fraud.
+ * - HUMAN_AUTHORED_LEGITIMATE: Authentic Legitimate Human Communication.
+ * - SUSPICIOUS_ANOMALY: Mixed signals requiring human security review.
+ * 
+ * RESILIENT OFFLINE FALLBACK:
+ * - Fully functional offline with 0ms network latency when API is offline or times out.
  */
 
 export const AI_DETECTION_VERDICTS = Object.freeze({
@@ -23,6 +40,30 @@ export const AI_DETECTION_VERDICTS = Object.freeze({
   MIXED_CONTENT: 'MIXED_OR_PARAPHRASED',
   LIKELY_HUMAN: 'LIKELY_HUMAN_AUTHORED',
   HIGHLY_CONFIDENT_HUMAN: 'HIGHLY_CONFIDENT_HUMAN'
+});
+
+export const THREAT_VERDICTS = Object.freeze({
+  FRAUDULENT_HARMFUL: 'FRAUDULENT_HARMFUL',
+  SUSPICIOUS_RISK: 'SUSPICIOUS_RISK',
+  LEGITIMATE_SAFE: 'LEGITIMATE_SAFE'
+});
+
+export const THREAT_CATEGORIES = Object.freeze({
+  CREDENTIAL_PHISHING: 'CREDENTIAL_PHISHING',
+  FINANCIAL_FRAUD: 'FINANCIAL_FRAUD',
+  SECURITY_ALERT_SCAM: 'SECURITY_ALERT_SCAM',
+  BRAND_IMPERSONATION: 'BRAND_IMPERSONATION',
+  MALWARE_LURE: 'MALWARE_LURE',
+  EXTORTION_COERCION: 'EXTORTION_COERCION',
+  BENIGN_LEGITIMATE: 'BENIGN_LEGITIMATE'
+});
+
+export const QUAD_MATRIX_VERDICTS = Object.freeze({
+  AI_GENERATED_HARMFUL: 'AI_GENERATED_HARMFUL',
+  AI_GENERATED_LEGITIMATE: 'AI_GENERATED_LEGITIMATE',
+  HUMAN_AUTHORED_HARMFUL: 'HUMAN_AUTHORED_HARMFUL',
+  HUMAN_AUTHORED_LEGITIMATE: 'HUMAN_AUTHORED_LEGITIMATE',
+  SUSPICIOUS_ANOMALY: 'SUSPICIOUS_ANOMALY'
 });
 
 /**
@@ -53,6 +94,96 @@ export const AI_HALLMARKS = [
 ];
 
 /**
+ * Curated threat and deception pattern rules for deterministic threat scoring.
+ */
+export const THREAT_PATTERNS = [
+  // 1. Credential Harvesting & Account Takeover
+  {
+    pattern: /\b(?:verify (?:your|my) (?:account|identity|credentials|password|email)|confirm (?:your|my) (?:login|password|credentials|security details)|reset (?:your|my) password|click (?:the link below|here) to (?:verify|confirm|login|sign in)|update your (?:billing|account|payment) (?:info|information)|validate your (?:identity|account))\b/i,
+    category: 'CREDENTIAL_PHISHING',
+    indicator: 'Credential Harvesting Trap',
+    severity: 'CRITICAL',
+    weight: 35,
+    description: 'Solicits user to enter credentials, verify account, or click authentication portal'
+  },
+  // 2. Urgent Security Scams & Account Lockout Threats
+  {
+    pattern: /\b(?:unauthorized (?:access|sign-in|activity|charges?)|account (?:has been|is) (?:suspended|locked|restricted|compromised|flagged)|immediate action (?:is )?required|suspended within (?:24|48) hours|terminate your access|security alert:?\s*(?:urgent|unusual))\b/i,
+    category: 'SECURITY_ALERT_SCAM',
+    indicator: 'Account Compromise & Lockout Pretext',
+    severity: 'HIGH',
+    weight: 30,
+    description: 'Simulates alarming security compromise to trigger urgent panicked response'
+  },
+  // 3. Financial Manipulation, BEC & Wire Fraud
+  {
+    pattern: /\b(?:wire transfer|direct deposit|bank routing|bank account (?:details|information)|gift cards?|itunes card|crypto(?:currency)?|bitcoin|send payment to|invoice attached|update payment (?:instructions|details)|wire (?:the|funds)|remittance advice)\b/i,
+    category: 'FINANCIAL_FRAUD',
+    indicator: 'Financial Diversion & Wire Lure',
+    severity: 'CRITICAL',
+    weight: 40,
+    description: 'Requests urgent money transfer, banking credential alteration, or gift cards'
+  },
+  // 4. Authority & Brand Impersonation
+  {
+    pattern: /\b(?:paypal (?:security|support|team)|microsoft (?:365|security|support|team)|google workspace (?:security|team)|it (?:helpdesk|support|department)|internal revenue service|ceo office|human resources payroll)\b/i,
+    category: 'BRAND_IMPERSONATION',
+    indicator: 'Brand or Authority Impersonation',
+    severity: 'HIGH',
+    weight: 25,
+    description: 'Claims high-authority brand or organizational oversight without verification'
+  },
+  // 5. Coercive Time Limits & Extortion
+  {
+    pattern: /\b(?:within (?:24|12|48) hours|strictly confidential|do not inform anyone|failure to comply will result|legal action will be taken|your prompt compliance)\b/i,
+    category: 'EXTORTION_COERCION',
+    indicator: 'Artificial Deadline & Coercion',
+    severity: 'MEDIUM',
+    weight: 20,
+    description: 'Pressures recipient with tight artificial countdown or legal extortion'
+  },
+  // 6. Malware & Malicious Attachment Lure
+  {
+    pattern: /\b(?:enable macros|download (?:the|attached) (?:file|exe|zip|archive|payload)|view invoice\.exe|security_patch\.zip)\b/i,
+    category: 'MALWARE_LURE',
+    indicator: 'Malware / Macro Execution Lure',
+    severity: 'CRITICAL',
+    weight: 40,
+    description: 'Encourages downloading or executing suspicious attachments or enabling macros'
+  }
+];
+
+/**
+ * Benign workplace indicators that reduce threat false alarms.
+ */
+export const BENIGN_PATTERNS = [
+  /\b(?:attached is the (?:presentation|deck|minutes|agenda)|meeting (?:notes|link|minutes)|standup|catch up tomorrow|hop on a (?:call|google meet|zoom)|feel free to edit the doc|pull request|github|jira ticket|looking forward to (?:seeing|working with) you)\b/i,
+  /\b(?:sprint (?:planning|review|retrospective)|code review|deployment pipeline|quarterly roadmap)\b/i
+];
+
+/**
+ * Strips HTML tags and decodes common entities to produce clean plaintext.
+ * 
+ * @param {string} input
+ * @returns {string} Clean plaintext
+ */
+export function stripHtml(input) {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Segments raw text into distinct sentences with robust punctuation and boundary handling.
  * 
  * @param {string} text Raw email body text
@@ -61,8 +192,9 @@ export const AI_HALLMARKS = [
 export function segmentSentences(text) {
   if (!text || typeof text !== 'string') return [];
 
-  // Clean and normalize linebreaks
-  const normalized = text
+  const cleanText = text.includes('<') && text.includes('>') ? stripHtml(text) : text;
+
+  const normalized = cleanText
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .replace(/\t/g, ' ')
@@ -70,19 +202,16 @@ export function segmentSentences(text) {
 
   if (!normalized) return [];
 
-  // Match sentences ending with ., !, ?, or paragraph breaks
   const rawSegments = normalized.split(/(?<=[.?!])\s+(?=[A-Z0-9"'\(\[])|\n{2,}/);
 
   const sentences = [];
   for (const seg of rawSegments) {
     const trimmed = seg.trim().replace(/\s+/g, ' ');
-    // Keep meaningful sentences (at least 2 words or 8 characters)
     if (trimmed.length >= 8 && trimmed.split(/\s+/).length >= 2) {
       sentences.push(trimmed);
     }
   }
 
-  // Fallback if no clean punctuation found
   if (sentences.length === 0 && normalized.length > 0) {
     sentences.push(normalized);
   }
@@ -98,12 +227,11 @@ export function segmentSentences(text) {
  */
 export function tokenizeText(text) {
   if (!text || typeof text !== 'string') return [];
-  const words = text
+  return text
     .toLowerCase()
     .replace(/[^a-z0-9'\s-]/g, ' ')
     .split(/\s+/)
     .filter((w) => w.length > 0);
-  return words;
 }
 
 /**
@@ -145,23 +273,19 @@ export function computeBurstiness(sentences) {
     lengths.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / lengths.length;
   const stdDev = Math.sqrt(variance);
 
-  // Coefficient of Variation (CV) = Standard Deviation / Mean
   const cv = mean > 0 ? stdDev / mean : 0;
 
-  // Typical Human CV in natural email: 0.60 - 1.10
-  // Typical AI CV in LLM generation: 0.15 - 0.40 (highly uniform rhythm)
-  // Convert CV to a 0-100 score where 0 = high burstiness (Human), 100 = low burstiness (AI)
   let aiBurstinessLikelihood = 50;
   if (cv < 0.25) {
-    aiBurstinessLikelihood = 92; // Extremely robotic uniform cadence
+    aiBurstinessLikelihood = 92;
   } else if (cv < 0.38) {
-    aiBurstinessLikelihood = 78; // Moderately uniform
+    aiBurstinessLikelihood = 78;
   } else if (cv < 0.52) {
-    aiBurstinessLikelihood = 55; // Borderline
+    aiBurstinessLikelihood = 55;
   } else if (cv < 0.70) {
-    aiBurstinessLikelihood = 32; // Normal human variation
+    aiBurstinessLikelihood = 32;
   } else {
-    aiBurstinessLikelihood = 15; // High human burstiness
+    aiBurstinessLikelihood = 15;
   }
 
   return {
@@ -195,7 +319,6 @@ export function computePerplexityProxy(tokens) {
     };
   }
 
-  // Common high-frequency connectors favored by LLM nucleus sampling
   const llmHighFrequencyWords = new Set([
     'additionally',
     'furthermore',
@@ -208,6 +331,32 @@ export function computePerplexityProxy(tokens) {
     'essential',
     'paramount',
     'seamless',
+    'seamlessly',
+    'transformative',
+    'synergy',
+    'foster',
+    'fostering',
+    'beacon',
+    'tapestry',
+    'delve',
+    'delving',
+    'testament',
+    'collaborative',
+    'unwavering',
+    'ecosystem',
+    'dynamic',
+    'robust',
+    'tailored',
+    'meticulously',
+    'streamline',
+    'interoperability',
+    'empower',
+    'empowers',
+    'catalyst',
+    'journey',
+    'realm',
+    'vital',
+    'pivotal',
     'comprehensive',
     'efficient',
     'innovative',
@@ -231,10 +380,9 @@ export function computePerplexityProxy(tokens) {
 
   const transitionDensity = (transitionCount / tokens.length) * 100;
 
-  // High predictability: AI models cluster around standard, neutral transitions
   let predictabilityScore = 30;
   if (transitionDensity > 7.0) {
-    predictabilityScore = 88; // Dense clustering of formal connectors
+    predictabilityScore = 88;
   } else if (transitionDensity > 4.5) {
     predictabilityScore = 72;
   } else if (transitionDensity > 2.0) {
@@ -316,22 +464,119 @@ export function detectAiHallmarks(text) {
 }
 
 /**
- * Computes deterministic stylometric detection score from text.
+ * Analyzes deterministic threat, deception, and harm cues.
+ * 
+ * @param {string} text 
+ * @param {string} [subject] 
+ * @returns {object}
+ */
+export function analyzeThreatDeterministic(text, subject = '') {
+  const fullText = subject ? `${subject}\n\n${text}` : text;
+  const matches = [];
+  let rawScore = 0;
+  let hasCriticalLure = false;
+
+  for (const item of THREAT_PATTERNS) {
+    const found = fullText.match(item.pattern);
+    if (found) {
+      matches.push({
+        category: item.category,
+        indicator: item.indicator,
+        severity: item.severity,
+        evidence: found[0],
+        explanation: item.description,
+        weight: item.weight
+      });
+      rawScore += item.weight;
+      if (item.severity === 'CRITICAL') {
+        hasCriticalLure = true;
+      }
+    }
+  }
+
+  let benignCount = 0;
+  for (const bp of BENIGN_PATTERNS) {
+    if (bp.test(fullText)) {
+      benignCount++;
+    }
+  }
+
+  if (benignCount > 0 && !hasCriticalLure) {
+    rawScore = Math.max(0, rawScore - benignCount * 25);
+  }
+
+  const threatScore = Math.max(0, Math.min(99, Math.round(rawScore)));
+  const isFake = threatScore >= 35 || hasCriticalLure || matches.some(m => m.category === 'CREDENTIAL_PHISHING' || m.category === 'FINANCIAL_FRAUD');
+  const isHarmful = threatScore >= 35 || hasCriticalLure || matches.some(m => m.category === 'CREDENTIAL_PHISHING' || m.category === 'FINANCIAL_FRAUD');
+  const isLegitimate = threatScore < 30 && !hasCriticalLure && matches.length === 0;
+
+  let threatVerdict = THREAT_VERDICTS.LEGITIMATE_SAFE;
+  if (threatScore >= 60 || hasCriticalLure) {
+    threatVerdict = THREAT_VERDICTS.FRAUDULENT_HARMFUL;
+  } else if (threatScore >= 30) {
+    threatVerdict = THREAT_VERDICTS.SUSPICIOUS_RISK;
+  }
+
+  const primaryCategory =
+    matches.length > 0 ? matches[0].category : THREAT_CATEGORIES.BENIGN_LEGITIMATE;
+
+  return {
+    threatScore,
+    isFake,
+    isHarmful,
+    isLegitimate,
+    threatVerdict,
+    threatCategory: primaryCategory,
+    threatIndicators: matches
+  };
+}
+
+/**
+ * Resolves the unified Quad-Matrix verdict from authorship and threat metrics.
+ * 
+ * @param {number} aiProbability 
+ * @param {number} threatScore 
+ * @returns {string} One of QUAD_MATRIX_VERDICTS
+ */
+export function resolveQuadMatrixVerdict(aiProbability, threatScore, isHarmful = null) {
+  const isHighAi = aiProbability >= 50;
+  const isHarmfulThreat = isHarmful !== null ? Boolean(isHarmful) : threatScore >= 50;
+  const isSafe = threatScore < 30 && !isHarmfulThreat;
+
+  if (isHarmfulThreat) {
+    return isHighAi
+      ? QUAD_MATRIX_VERDICTS.AI_GENERATED_HARMFUL
+      : QUAD_MATRIX_VERDICTS.HUMAN_AUTHORED_HARMFUL;
+  }
+
+  if (isSafe) {
+    return isHighAi
+      ? QUAD_MATRIX_VERDICTS.AI_GENERATED_LEGITIMATE
+      : QUAD_MATRIX_VERDICTS.HUMAN_AUTHORED_LEGITIMATE;
+  }
+
+  return QUAD_MATRIX_VERDICTS.SUSPICIOUS_ANOMALY;
+}
+
+/**
+ * Computes deterministic stylometric and threat detection scores from text.
  * Highly accurate baseline that operates with 0ms network latency.
  * 
  * @param {string} text Raw email body
  * @param {string} [subject] Email subject line
- * @returns {object} Deterministic detection assessment
+ * @returns {object} Deterministic assessment
  */
 export function analyzeStylometricsDeterministic(text, subject = '') {
-  const fullText = subject ? `${subject}\n\n${text}` : text;
-  const sentences = segmentSentences(fullText);
+  const cleanBody = text && typeof text === 'string' ? text.trim() : '';
+  const fullText = subject ? `${subject}\n\n${cleanBody}` : cleanBody;
+  const sentences = segmentSentences(cleanBody || subject);
   const tokens = tokenizeText(fullText);
 
   const burstiness = computeBurstiness(sentences);
   const perplexity = computePerplexityProxy(tokens);
   const lexical = computeLexicalDiversity(tokens);
   const hallmarks = detectAiHallmarks(fullText);
+  const threatData = analyzeThreatDeterministic(fullText, subject);
 
   // Hallmark scoring based on count and weight
   let hallmarkScore = Math.min(100, hallmarks.totalHallmarkWeight * 1.5);
@@ -339,53 +584,56 @@ export function analyzeStylometricsDeterministic(text, subject = '') {
   else if (hallmarks.hallmarks.length === 2) hallmarkScore = Math.max(hallmarkScore, 70);
   else if (hallmarks.hallmarks.length === 1) hallmarkScore = Math.max(hallmarkScore, 50);
 
-  // Calculate weighted composite score
-  // Weights:
-  // - Hallmarks: 40%
-  // - Burstiness (low variance = AI): 35%
-  // - Predictability proxy: 25%
   let compositeScore =
     hallmarkScore * 0.40 +
     burstiness.burstinessScore * 0.35 +
     perplexity.predictabilityScore * 0.25;
 
-  // Cadence adjustments
   if (burstiness.cv < 0.35) compositeScore += 8;
-  if (burstiness.cv > 0.65) compositeScore -= 12;
+  if (burstiness.cv > 0.65 && hallmarks.hallmarks.length === 0) compositeScore -= 12;
 
-  // Symmetry adjustment: if text has 3+ sentences of almost identical length
   if (sentences.length >= 3 && burstiness.cv < 0.22) {
     compositeScore += 10;
   }
 
-  // Cap composite score between 0 and 99
-  const finalScore = Math.max(2, Math.min(98, Math.round(compositeScore)));
-
-  // Determine classification
-  let verdict = AI_DETECTION_VERDICTS.LIKELY_HUMAN;
-  if (finalScore >= 80) {
-    verdict = AI_DETECTION_VERDICTS.DEFINITELY_AI;
-  } else if (finalScore >= 60) {
-    verdict = AI_DETECTION_VERDICTS.LIKELY_AI;
-  } else if (finalScore >= 40) {
-    verdict = AI_DETECTION_VERDICTS.MIXED_CONTENT;
-  } else if (finalScore >= 20) {
-    verdict = AI_DETECTION_VERDICTS.LIKELY_HUMAN;
-  } else {
-    verdict = AI_DETECTION_VERDICTS.HIGHLY_CONFIDENT_HUMAN;
+  // Strong AI hallmarks override: if text contains clear AI hallmark signatures, guarantee AI probability
+  if (hallmarks.hallmarks.length >= 2 || hallmarks.totalHallmarkWeight >= 35) {
+    compositeScore = Math.max(compositeScore, 65);
+  }
+  if (hallmarks.hallmarks.length >= 3 || hallmarks.totalHallmarkWeight >= 50) {
+    compositeScore = Math.max(compositeScore, 80);
   }
 
-  // Generate per-sentence synthetic probabilities for interactive heatmap
+  const finalAiScore = Math.max(2, Math.min(98, Math.round(compositeScore)));
+
+  let authorshipVerdict = AI_DETECTION_VERDICTS.LIKELY_HUMAN;
+  if (finalAiScore >= 80) {
+    authorshipVerdict = AI_DETECTION_VERDICTS.DEFINITELY_AI;
+  } else if (finalAiScore >= 60) {
+    authorshipVerdict = AI_DETECTION_VERDICTS.LIKELY_AI;
+  } else if (finalAiScore >= 40) {
+    authorshipVerdict = AI_DETECTION_VERDICTS.MIXED_CONTENT;
+  } else if (finalAiScore >= 20) {
+    authorshipVerdict = AI_DETECTION_VERDICTS.LIKELY_HUMAN;
+  } else {
+    authorshipVerdict = AI_DETECTION_VERDICTS.HIGHLY_CONFIDENT_HUMAN;
+  }
+
+  const quadMatrixVerdict = resolveQuadMatrixVerdict(finalAiScore, threatData.threatScore, threatData.isHarmful);
+
+  // Generate per-sentence synthetic and deceptive annotations for heatmap
   const perSentenceAnalysis = sentences.map((sentence, index) => {
     const sTokens = tokenizeText(sentence);
     const sHallmarks = detectAiHallmarks(sentence);
-    let sScore = Math.round(finalScore * 0.7);
+    const sThreatMatches = THREAT_PATTERNS.filter((tp) => tp.pattern.test(sentence));
+    const isSentenceDeceptive = sThreatMatches.length > 0;
+
+    let sScore = Math.round(finalAiScore * 0.7);
 
     if (sHallmarks.hallmarks.length > 0) {
       sScore = Math.min(99, sScore + 30);
     }
 
-    // Short informal fragments (< 4 tokens) are typical of humans
     if (sTokens.length <= 4 && sHallmarks.hallmarks.length === 0) {
       sScore = Math.max(10, sScore - 35);
     }
@@ -394,17 +642,37 @@ export function analyzeStylometricsDeterministic(text, subject = '') {
       index,
       sentence,
       aiProbability: sScore,
+      isDeceptive: isSentenceDeceptive,
+      deceptiveIndicators: sThreatMatches.map((m) => m.indicator),
       classification:
         sScore >= 75 ? 'AI_GENERATED' : sScore >= 45 ? 'SUSPICIOUS_MIXED' : 'HUMAN_AUTHENTIC',
       hallmarksFound: sHallmarks.hallmarks.map((h) => h.matched)
     };
   });
 
+  const threatText = threatData.isHarmful
+    ? `Identified ${threatData.threatIndicators.length} critical threat cue(s) indicating potential ${threatData.threatCategory.replace(/_/g, ' ')} (${threatData.threatScore}% threat severity).`
+    : `Threat analysis indicates benign/safe communication (Threat Score: ${threatData.threatScore}%).`;
+
+  const authorshipText =
+    finalAiScore >= 60
+      ? `Statistical stylometrics detect strong synthetic indicators (${finalAiScore}% probability) with uniform cadence (CV: ${burstiness.cv}) and ${hallmarks.hallmarks.length} hallmark marker(s).`
+      : `Stylometrics indicate predominantly human-authored characteristics (${100 - finalAiScore}% organic confidence).`;
+
   return {
-    aiProbability: finalScore,
-    verdict,
+    aiProbability: finalAiScore,
+    authorshipVerdict,
+    verdict: authorshipVerdict, // backwards-compatible alias
+    threatScore: threatData.threatScore,
+    isFake: threatData.isFake,
+    isHarmful: threatData.isHarmful,
+    isLegitimate: threatData.isLegitimate,
+    threatVerdict: threatData.threatVerdict,
+    threatCategory: threatData.threatCategory,
+    quadMatrixVerdict,
+    threatIndicators: threatData.threatIndicators,
     confidence: sentences.length >= 4 ? 90 : 75,
-    engine: 'AEGIS Deterministic Stylometric & Hallmark Engine',
+    engine: 'AEGIS Dual-Matrix Deterministic Engine',
     metrics: {
       burstiness,
       perplexity,
@@ -414,27 +682,37 @@ export function analyzeStylometricsDeterministic(text, subject = '') {
     },
     hallmarks: hallmarks.hallmarks,
     perSentenceAnalysis,
-    summary:
-      finalScore >= 60
-        ? `Statistical stylometrics detect strong synthetic indicators (${finalScore}% probability). The text displays an unnaturally uniform sentence cadence (CV: ${burstiness.cv}) and ${hallmarks.hallmarks.length} recognizable LLM signature marker(s).`
-        : `Stylometric analysis indicates predominantly human-authored characteristics (${100 - finalScore}% organic confidence). The text features natural sentence length variance and organic discourse pacing.`
+    summary: `${authorshipText} ${threatText}`,
+    suggestedAnalystAction: threatData.isHarmful
+      ? `Exercise caution: Email contains fraudulent/harmful indicators (${threatData.threatCategory}). Do NOT click links or provide credentials.`
+      : finalAiScore >= 60
+      ? 'Synthetic text detected. Verify sender identity and cross-check SPF/DKIM/DMARC.'
+      : 'Email appears legitimate and organic. Verify routine attachments if any.'
   };
 }
 
 /**
- * Builds the computational linguistics prompt for Google Gemini 3.6 Flash.
+ * Builds the computational linguistics and threat prompt for Google Gemini 3.6 Flash.
  */
 export function buildAiDetectionPrompt(text, subject = '', deterministicMetrics = null) {
-  const systemInstruction = `You are an elite forensic computational linguist and synthetic text detection specialist.
-Your mission is to rigorously analyze an incoming email and determine whether it was generated by an AI/LLM (e.g. ChatGPT, Claude, Gemini, synthetic phishing generators) or authored by a human.
+  const systemInstruction = `You are an elite Senior Dual-Domain Forensic Email Analyst and Computational Linguist.
+Your mission is to rigorously analyze an incoming email along TWO independent, orthogonal dimensions:
 
-FORENSIC PRINCIPLES:
-1. Examine structural symmetry, lexical predictability, sentence cadence uniformity (burstiness), emotional authenticity, and prompt leakage artifacts.
-2. Evaluate each sentence independently, assigning an AI generation probability (0% to 100%).
-3. Distinguish between polite formal human professional communication and robotic synthetic LLM smoothing.
-4. Output STRICT, VALID JSON conforming exactly to the requested schema. No markdown backticks.`;
+DIMENSION 1: AUTHORSHIP ORIGIN (AI-Generated vs Human-Authored)
+- Evaluate sentence cadence variance (burstiness), vocabulary smoothing, structural symmetry, robotic clichés, and prompt leak markers.
+- Assign an aiProbability (0% to 100%).
 
-  const promptText = `Analyze the following email text for AI-generated synthetic content indicators.
+DIMENSION 2: DECEPTION & THREAT CLASSIFICATION (Fake / Harmful vs Legitimate / Safe)
+- Determine whether the email is FAKE (deceptive, spoofing, impersonating, or fraudulent) or AUTHENTIC.
+- Determine whether the email is HARMFUL (credential phishing, financial wire scam, extortion, malware) or SAFE (benign business, transactional, or personal dialogue).
+- Assign a threatScore (0% to 100%).
+
+CRITICAL FORENSIC PRINCIPLES:
+1. Orthogonal Separation: AI-generated text is NOT automatically malicious (e.g. an AI-written marketing newsletter or meeting recap is AI-Generated but LEGITIMATE).
+2. Human attacks exist: A CEO wire fraud scam written manually by a scammer is Human-Authored but FRAUDULENT and HARMFUL.
+3. Output STRICT, VALID JSON conforming exactly to the requested schema. No markdown backticks.`;
+
+  const promptText = `Analyze the following email for both AI synthetic authorship AND deceptive threat/harm indicators.
 
 EMAIL SUBJECT: "${subject || '(No Subject)'}"
 
@@ -443,21 +721,39 @@ EMAIL BODY:
 ${text}
 """
 
-DETERMINISTIC STYLOMETRIC BASELINE:
+DETERMINISTIC FORENSIC BASELINE:
 - Calculated Burstiness (CV): ${deterministicMetrics?.metrics?.burstiness?.cv ?? 'N/A'}
-- Detected Hallmark Clichés: ${deterministicMetrics?.hallmarks?.map((h) => h.matched).join(', ') || 'None'}
+- Detected LLM Hallmarks: ${deterministicMetrics?.hallmarks?.map((h) => h.matched).join(', ') || 'None'}
+- Detected Threat Cues: ${deterministicMetrics?.threatIndicators?.map((t) => t.indicator).join(', ') || 'None'}
+- Baseline Threat Score: ${deterministicMetrics?.threatScore ?? 'N/A'}
 
 Produce your forensic assessment strictly as a JSON object matching this schema:
 {
   "aiProbability": 85,
+  "authorshipVerdict": "DEFINITELY_AI_GENERATED | LIKELY_AI_GENERATED | MIXED_OR_PARAPHRASED | LIKELY_HUMAN_AUTHORED | HIGHLY_CONFIDENT_HUMAN",
+  "isFake": true,
+  "isHarmful": true,
+  "isLegitimate": false,
+  "threatScore": 90,
+  "threatVerdict": "FRAUDULENT_HARMFUL | SUSPICIOUS_RISK | LEGITIMATE_SAFE",
+  "threatCategory": "CREDENTIAL_PHISHING | FINANCIAL_FRAUD | SECURITY_ALERT_SCAM | BRAND_IMPERSONATION | MALWARE_LURE | EXTORTION_COERCION | BENIGN_LEGITIMATE",
+  "quadMatrixVerdict": "AI_GENERATED_HARMFUL | AI_GENERATED_LEGITIMATE | HUMAN_AUTHORED_HARMFUL | HUMAN_AUTHORED_LEGITIMATE | SUSPICIOUS_ANOMALY",
   "confidence": 92,
-  "verdict": "DEFINITELY_AI_GENERATED | LIKELY_AI_GENERATED | MIXED_OR_PARAPHRASED | LIKELY_HUMAN_AUTHORED | HIGHLY_CONFIDENT_HUMAN",
-  "summary": "Plain-language executive forensic summary explaining the linguistic findings.",
+  "summary": "Forensic executive summary addressing both authorship origin and deceptive harm/legitimacy status.",
+  "threatIndicators": [
+    {
+      "category": "CREDENTIAL_PHISHING",
+      "severity": "CRITICAL | HIGH | MEDIUM | LOW",
+      "indicator": "Short name",
+      "evidence": "Quoted text snippet",
+      "explanation": "Why this represents a threat"
+    }
+  ],
   "linguisticIndicators": [
     {
-      "indicator": "Short name of indicator",
+      "indicator": "Short name",
       "severity": "HIGH | MEDIUM | LOW",
-      "evidence": "Quoted text or pattern",
+      "evidence": "Quoted text",
       "explanation": "Why this reflects AI or human generation"
     }
   ],
@@ -466,6 +762,7 @@ Produce your forensic assessment strictly as a JSON object matching this schema:
       "index": 0,
       "sentence": "Exact sentence text",
       "aiProbability": 90,
+      "isDeceptive": true,
       "classification": "AI_GENERATED | SUSPICIOUS_MIXED | HUMAN_AUTHENTIC",
       "reason": "Brief rationale"
     }
@@ -477,8 +774,8 @@ Produce your forensic assessment strictly as a JSON object matching this schema:
 }
 
 /**
- * Full Forensic AI Content Detection Orchestrator.
- * Combines Google Gemini 3.6 Flash with Deterministic Stylometric analysis,
+ * Full Forensic AI & Threat Content Detection Orchestrator.
+ * Combines Google Gemini 3.6 Flash with Deterministic Stylometric & Threat analysis,
  * with automatic fallback if the live API times out or is offline.
  * 
  * @param {string} text Raw email body text
@@ -488,7 +785,7 @@ Produce your forensic assessment strictly as a JSON object matching this schema:
  * @param {string} [options.model] Gemini model identifier (default: "gemini-3.6-flash")
  * @param {number} [options.timeoutMs] Timeout in ms (default: 30000)
  * @param {boolean} [options.forceOffline] Forces offline deterministic analysis
- * @returns {Promise<object>} Complete forensic AI content detection report
+ * @returns {Promise<object>} Complete forensic dual-matrix report
  */
 export async function detectAiGeneratedContent(text, options = {}) {
   const generatedAt = new Date().toISOString();
@@ -497,7 +794,7 @@ export async function detectAiGeneratedContent(text, options = {}) {
   const apiKey = options.apiKey || process.env.GEMINI_API_KEY || '';
   const model = options.model || process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
-  // 1. Run deterministic stylometrics baseline
+  // 1. Run deterministic stylometrics & threat baseline
   const deterministicBaseline = analyzeStylometricsDeterministic(text, subject);
 
   // If forceOffline or no API key, return deterministic baseline immediately
@@ -505,113 +802,138 @@ export async function detectAiGeneratedContent(text, options = {}) {
     return {
       status: 'AVAILABLE',
       generatedAt,
-      model: `${model} (Offline Stylometric Engine)`,
+      model: `${model} (Offline Dual-Matrix Engine)`,
       isOfflineFallback: true,
       ...deterministicBaseline
     };
   }
 
-  // 2. Query Google Gemini 3.6 Flash for Deep Semantic Linguistics
+  // 2. Query Google Gemini with automatic model failover pool
   const { systemInstruction, promptText } = buildAiDetectionPrompt(text, subject, deterministicBaseline);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-      model
-    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const candidateModels = [
+    model,
+    'gemini-3.5-flash',
+    'gemini-flash-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.7-flash'
+  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: promptText }] }],
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1
-        }
-      })
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      // Fall back gracefully to deterministic baseline
-      return {
-        status: 'AVAILABLE',
-        generatedAt,
-        model: `${model} (Stylometric Fallback - HTTP ${response.status})`,
-        isOfflineFallback: true,
-        ...deterministicBaseline
-      };
-    }
-
-    const payload = await response.json();
-    const rawText = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!rawText) {
-      return {
-        status: 'AVAILABLE',
-        generatedAt,
-        model: `${model} (Stylometric Fallback)`,
-        isOfflineFallback: true,
-        ...deterministicBaseline
-      };
-    }
-
-    let parsed = null;
+  for (const currentModel of candidateModels) {
     try {
-      parsed = JSON.parse(rawText);
-    } catch {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        currentModel
+      )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: promptText }] }],
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
+          }
+        })
+      });
+
+      if (response.status === 429 || response.status === 503 || response.status === 404) {
+        console.warn(`[AI Content Detection] Model ${currentModel} returned HTTP ${response.status} (quota/availability). Trying next model in pool...`);
+        continue;
+      }
+
+      if (!response.ok) {
+        console.warn(`[AI Content Detection] Model ${currentModel} returned HTTP ${response.status}. Trying next model...`);
+        continue;
+      }
+
+      const payload = await response.json();
+      const rawText = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) continue;
+
+      let parsed = null;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        continue;
+      }
+
+      clearTimeout(timeoutId);
+
+      // Form Hybrid Ensemble Scores for both Authorship and Threat
+      const geminiAiScore = typeof parsed.aiProbability === 'number' ? parsed.aiProbability : deterministicBaseline.aiProbability;
+      const hybridAiScore = Math.round(geminiAiScore * 0.6 + deterministicBaseline.aiProbability * 0.4);
+
+      const geminiThreatScore = typeof parsed.threatScore === 'number' ? parsed.threatScore : deterministicBaseline.threatScore;
+      const hybridThreatScore = Math.round(geminiThreatScore * 0.65 + deterministicBaseline.threatScore * 0.35);
+
+      let authorshipVerdict = AI_DETECTION_VERDICTS.LIKELY_HUMAN;
+      if (hybridAiScore >= 80) authorshipVerdict = AI_DETECTION_VERDICTS.DEFINITELY_AI;
+      else if (hybridAiScore >= 60) authorshipVerdict = AI_DETECTION_VERDICTS.LIKELY_AI;
+      else if (hybridAiScore >= 40) authorshipVerdict = AI_DETECTION_VERDICTS.MIXED_CONTENT;
+      else if (hybridAiScore >= 20) authorshipVerdict = AI_DETECTION_VERDICTS.LIKELY_HUMAN;
+      else authorshipVerdict = AI_DETECTION_VERDICTS.HIGHLY_CONFIDENT_HUMAN;
+
+      const isFake = hybridThreatScore >= 35 || Boolean(parsed.isFake) || deterministicBaseline.isFake;
+      const isHarmful = hybridThreatScore >= 35 || Boolean(parsed.isHarmful) || deterministicBaseline.isHarmful;
+      const isLegitimate = hybridThreatScore < 30 && !isFake && !isHarmful;
+
+      let threatVerdict = THREAT_VERDICTS.LEGITIMATE_SAFE;
+      if (hybridThreatScore >= 60 || isHarmful) {
+        threatVerdict = THREAT_VERDICTS.FRAUDULENT_HARMFUL;
+      } else if (hybridThreatScore >= 30) {
+        threatVerdict = THREAT_VERDICTS.SUSPICIOUS_RISK;
+      }
+
+      const quadMatrixVerdict = resolveQuadMatrixVerdict(hybridAiScore, hybridThreatScore, isHarmful);
+
+      const threatIndicators = Array.isArray(parsed.threatIndicators) && parsed.threatIndicators.length > 0
+        ? parsed.threatIndicators
+        : deterministicBaseline.threatIndicators;
+
       return {
         status: 'AVAILABLE',
         generatedAt,
-        model: `${model} (Stylometric Fallback - Parse)`,
-        isOfflineFallback: true,
-        ...deterministicBaseline
+        model: currentModel,
+        engine: `gemini-api (${currentModel})`,
+        isOfflineFallback: false,
+        aiProbability: hybridAiScore,
+        authorshipVerdict,
+        verdict: authorshipVerdict,
+        threatScore: hybridThreatScore,
+        isFake,
+        isHarmful,
+        isLegitimate,
+        threatVerdict,
+        threatCategory: parsed.threatCategory || deterministicBaseline.threatCategory,
+        quadMatrixVerdict,
+        threatIndicators,
+        confidence: parsed.confidence || deterministicBaseline.confidence,
+        summary: parsed.summary || deterministicBaseline.summary,
+        metrics: deterministicBaseline.metrics,
+        hallmarks: deterministicBaseline.hallmarks,
+        linguisticIndicators: parsed.linguisticIndicators || [],
+        perSentenceAnalysis: Array.isArray(parsed.perSentenceAnalysis) && parsed.perSentenceAnalysis.length > 0
+          ? parsed.perSentenceAnalysis
+          : deterministicBaseline.perSentenceAnalysis,
+        suggestedAnalystAction: parsed.suggestedAnalystAction || deterministicBaseline.suggestedAnalystAction
       };
+    } catch (err) {
+      if (err.name === 'AbortError') break;
+      console.warn(`[AI Content Detection] Live call failed for ${currentModel}:`, err.message || err);
     }
-
-    // 3. Form Hybrid Ensemble Score (50% Gemini Semantic + 50% Stylometric Metrics)
-    const geminiScore = typeof parsed.aiProbability === 'number' ? parsed.aiProbability : deterministicBaseline.aiProbability;
-    const hybridScore = Math.round(geminiScore * 0.6 + deterministicBaseline.aiProbability * 0.4);
-
-    let verdict = AI_DETECTION_VERDICTS.LIKELY_HUMAN;
-    if (hybridScore >= 80) verdict = AI_DETECTION_VERDICTS.DEFINITELY_AI;
-    else if (hybridScore >= 60) verdict = AI_DETECTION_VERDICTS.LIKELY_AI;
-    else if (hybridScore >= 40) verdict = AI_DETECTION_VERDICTS.MIXED_CONTENT;
-    else if (hybridScore >= 20) verdict = AI_DETECTION_VERDICTS.LIKELY_HUMAN;
-    else verdict = AI_DETECTION_VERDICTS.HIGHLY_CONFIDENT_HUMAN;
-
-    return {
-      status: 'AVAILABLE',
-      generatedAt,
-      model,
-      isOfflineFallback: false,
-      aiProbability: hybridScore,
-      verdict,
-      confidence: parsed.confidence || deterministicBaseline.confidence,
-      summary: parsed.summary || deterministicBaseline.summary,
-      metrics: deterministicBaseline.metrics,
-      hallmarks: deterministicBaseline.hallmarks,
-      linguisticIndicators: parsed.linguisticIndicators || [],
-      perSentenceAnalysis: Array.isArray(parsed.perSentenceAnalysis) && parsed.perSentenceAnalysis.length > 0
-        ? parsed.perSentenceAnalysis
-        : deterministicBaseline.perSentenceAnalysis,
-      suggestedAnalystAction: parsed.suggestedAnalystAction || 'Review sender authentication and inspect links.'
-    };
-  } catch (err) {
-    clearTimeout(timeoutId);
-    // On timeout, abort, or network failure, return the complete deterministic assessment with 0 delay
-    return {
-      status: 'AVAILABLE',
-      generatedAt,
-      model: `${model} (Stylometric Fallback - Socket/Timeout)`,
-      isOfflineFallback: true,
-      fallbackReason: err.message,
-      ...deterministicBaseline
-    };
   }
+
+  clearTimeout(timeoutId);
+  return {
+    status: 'AVAILABLE',
+    generatedAt,
+    model: `${model} (Stylometric Fallback - Model Pool Exhausted/Timeout)`,
+    isOfflineFallback: true,
+    ...deterministicBaseline
+  };
 }
