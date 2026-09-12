@@ -3,14 +3,14 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, Bell, Shield, Command, Plus, Radio, User, ChevronDown } from 'lucide-react';
+import { Search, Bell, Shield, Command, Plus, Radio } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
 import { MOCK_NOTIFICATIONS } from '../../data/mockData';
+import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/nextjs';
 
 export function AppHeader() {
   const pathname = usePathname();
   const [cmdOpen, setCmdOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const unreadCount = MOCK_NOTIFICATIONS.filter((n) => !n.read).length;
 
   const getPageTitle = () => {
@@ -82,44 +82,22 @@ export function AppHeader() {
             )}
           </Link>
 
-          {/* User Profile Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setProfileOpen(!profileOpen)}
-              className="flex items-center gap-2 p-1.5 rounded-xl bg-surfaceSecondary border border-borderSubtle hover:border-white/20 transition-colors"
-            >
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primaryBlue to-purpleAccent flex items-center justify-center text-white text-xs font-bold shadow-glowBlue">
-                AG
-              </div>
-              <span className="hidden lg:inline text-xs font-medium text-textPrimary">Alex Rivera (CISO)</span>
-              <ChevronDown className="w-3.5 h-3.5 text-textSecondary" />
-            </button>
-
-            {profileOpen && (
-              <div className="absolute right-0 mt-2 w-56 glass-panel rounded-2xl border border-white/10 shadow-2xl p-2 z-50 text-xs divide-y divide-borderSubtle">
-                <div className="p-2">
-                  <div className="font-semibold text-textPrimary">Alex Rivera</div>
-                  <div className="text-textSecondary text-[11px]">alex.rivera@aegis-sec.io</div>
-                  <div className="mt-1 inline-block px-2 py-0.5 rounded-full bg-purpleAccent/20 text-purpleAccent font-mono text-[10px]">
-                    Enterprise Tier
-                  </div>
-                </div>
-                <div className="py-1">
-                  <Link href="/settings" onClick={() => setProfileOpen(false)} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 text-textPrimary">
-                    <User className="w-3.5 h-3.5 text-primaryBlue" /> Profile & Security
-                  </Link>
-                  <Link href="/reports" onClick={() => setProfileOpen(false)} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 text-textPrimary">
-                    <Shield className="w-3.5 h-3.5 text-cyanAccent" /> SOC Audit Reports
-                  </Link>
-                </div>
-                <div className="pt-1">
-                  <Link href="/auth" onClick={() => setProfileOpen(false)} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-dangerRed/10 text-dangerRed">
-                    Sign Out
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Clerk Auth Controls */}
+          <Show when="signed-out">
+            <SignInButton mode="modal">
+              <button className="px-3 py-1.5 rounded-xl bg-surfaceSecondary border border-borderSubtle text-xs font-medium text-textPrimary hover:border-white/20 transition-colors">
+                Sign In
+              </button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <button className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-primaryBlue to-purpleAccent text-white text-xs font-semibold shadow-glowBlue hover:opacity-90 transition-opacity">
+                Sign Up
+              </button>
+            </SignUpButton>
+          </Show>
+          <Show when="signed-in">
+            <UserButton />
+          </Show>
         </div>
       </header>
 

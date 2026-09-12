@@ -20,6 +20,7 @@ import {
   Layers
 } from 'lucide-react';
 import { SAMPLE_SCANS } from '../data/mockData';
+import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/nextjs';
 
 export default function LandingPage() {
   const [selectedPreset, setSelectedPreset] = useState('ceo-wire-fraud');
@@ -78,16 +79,26 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/auth">
-              <button className="px-4 py-2 text-xs font-medium text-textSecondary hover:text-textPrimary transition-colors">
-                Sign In
-              </button>
-            </Link>
-            <Link href="/dashboard">
-              <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-primaryBlue to-purpleAccent text-white text-xs font-semibold shadow-glowBlue hover:opacity-95 transition-all">
-                Launch Platform
-              </button>
-            </Link>
+            <Show when="signed-out">
+              <SignInButton mode="modal">
+                <button className="px-4 py-2 text-xs font-medium text-textSecondary hover:text-textPrimary transition-colors cursor-pointer">
+                  Sign In
+                </button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-primaryBlue to-purpleAccent text-white text-xs font-semibold shadow-glowBlue hover:opacity-95 transition-all cursor-pointer">
+                  Sign Up
+                </button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
+              <Link href="/dashboard">
+                <button className="px-4 py-2 text-xs font-medium text-textSecondary hover:text-textPrimary transition-colors">
+                  Dashboard
+                </button>
+              </Link>
+              <UserButton />
+            </Show>
           </div>
         </div>
       </nav>

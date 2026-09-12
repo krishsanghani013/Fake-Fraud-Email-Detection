@@ -1,0 +1,47 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Profile {
+  id        String   @id // Clerk User ID (TEXT PRIMARY KEY)
+  name      String?
+  email     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  emails Email[]
+
+  @@map("profiles")
+}
+
+model Email {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id")
+  sender    String
+  subject   String?
+  body      String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user            Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysisResults AnalysisResult[]
+
+  @@map("emails")
+}
+
+model AnalysisResult {
+  id             String   @id @default(uuid()) @db.Uuid
+  emailId        String   @map("email_id") @db.Uuid
+  riskScore      Int?     @map("risk_score")
+  classification String?
+  explanation    String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  email Email @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@map("analysis_results")
+}
