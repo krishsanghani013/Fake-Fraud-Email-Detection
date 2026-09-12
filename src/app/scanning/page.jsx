@@ -12,7 +12,9 @@ import {
   Cpu,
   Radio,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Mail,
+  Send
 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 
@@ -33,21 +35,55 @@ export default function ScanningPage() {
   const [currentStage, setCurrentStage] = useState(0);
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
+  const [targetEmail, setTargetEmail] = useState(null);
 
   useEffect(() => {
+    // Read scanned email from session storage if present
+    let parsedInput = null;
+    try {
+      const stored = sessionStorage.getItem('current_scan_input');
+      if (stored) {
+        parsedInput = JSON.parse(stored);
+        setTargetEmail(parsedInput);
+      }
+    } catch {
+      // fallback
+    }
+
     const runPipeline = async () => {
+      const emailSubject = parsedInput?.subject || 'URGENT: Confidential Wire Transfer';
+      const senderAddr = parsedInput?.sender?.email || 'ceo-office@sec-apple-verify.com';
+      const hopCount = parsedInput?.hops?.length || 2;
+      const urlCount = parsedInput?.urls?.length || 2;
+
+      setLogs((prev) => [
+        ...prev,
+        `[SYSTEM] Initializing Aegis AI Security Engine v2.4...`,
+        `[TARGET] Ingested Target: "${emailSubject}"`,
+        `[SENDER] Origin: ${senderAddr}`,
+      ]);
+
       for (let i = 0; i < SCAN_STAGES.length; i++) {
         setCurrentStage(i);
         const stage = SCAN_STAGES[i];
-        
-        setLogs((prev) => [...prev, `[INIT] Stage ${stage.id}: ${stage.label}...`]);
+
+        let detailLog = `[INIT] Stage ${stage.id}: ${stage.label}...`;
+        if (stage.id === 1) {
+          detailLog = `[INIT] Stage 1: Parsing RFC 5322 structure for "${emailSubject.slice(0, 30)}..."`;
+        } else if (stage.id === 2) {
+          detailLog = `[INIT] Stage 2: Tracing ${hopCount} relay hops from origin IP...`;
+        } else if (stage.id === 6) {
+          detailLog = `[INIT] Stage 6: Analyzing ${urlCount} extracted body URLs across threat databases...`;
+        }
+
+        setLogs((prev) => [...prev, detailLog]);
         await new Promise((res) => setTimeout(res, stage.duration));
 
         setLogs((prev) => [
           ...prev,
           `[SUCCESS] Stage ${stage.id} Completed - Verification passed.`,
         ]);
-        
+
         setProgress(Math.round(((i + 1) / SCAN_STAGES.length) * 100));
       }
 
@@ -73,7 +109,13 @@ export default function ScanningPage() {
             Analyzing Email Security Vector
           </h1>
           <p className="text-xs text-textSecondary font-mono">
-            Scanning header hops, cryptographic signatures, sandboxing attachments, and computing LLM BEC threat scores.
+            {targetEmail ? (
+              <span>
+                Target: <strong className="text-textPrimary">{targetEmail.subject}</strong> ({targetEmail.sender?.email})
+              </span>
+            ) : (
+              'Scanning header hops, cryptographic signatures, sandboxing attachments, and computing LLM BEC threat scores.'
+            )}
           </p>
         </div>
 
@@ -137,7 +179,13 @@ export default function ScanningPage() {
             {logs.map((log, idx) => (
               <div
                 key={idx}
-                className={log.includes('SUCCESS') ? 'text-successGreen' : 'text-primaryBlue'}
+                className={
+                  log.includes('SUCCESS')
+                    ? 'text-successGreen'
+                    : log.includes('TARGET') || log.includes('SENDER')
+                    ? 'text-purpleAccent'
+                    : 'text-primaryBlue'
+                }
               >
                 {log}
               </div>

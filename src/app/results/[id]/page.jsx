@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ShieldAlert,
@@ -31,7 +31,33 @@ import { useToast } from '../../../components/ui/Toast';
 export default function ResultsPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
-  const scan = SAMPLE_SCANS['ceo-wire-fraud'];
+  const [scan, setScan] = useState(SAMPLE_SCANS['ceo-wire-fraud']);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('current_scan_input');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setScan((prev) => ({
+          ...prev,
+          id: parsed.id || prev.id,
+          scanTimestamp: parsed.parsedAt || prev.scanTimestamp,
+          subject: parsed.subject || prev.subject,
+          senderEmail: parsed.sender?.email || prev.senderEmail,
+          senderName: parsed.sender?.name || prev.senderName,
+          rawEmailContent: parsed.rawEmail || prev.rawEmailContent,
+          headers: {
+            ...prev.headers,
+            from: parsed.sender?.raw || prev.headers.from,
+            replyTo: parsed.replyTo?.email || prev.headers.replyTo,
+            messageId: parsed.messageId || prev.headers.messageId,
+          }
+        }));
+      }
+    } catch {
+      // fallback
+    }
+  }, []);
 
   const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text);
