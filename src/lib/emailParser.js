@@ -1,9 +1,4 @@
-/**
- * Phase 1 — Core Email Ingestion & RFC 5322 Parser
- * 
- * Standards-compliant, deterministic parser for RFC 5322 and basic MIME messages.
- * Does NOT invent data, does NOT execute AI/risk scoring/threat intelligence.
- */
+// RFC 5322 and MIME parser
 
 import { extractArtifacts } from './emailArtifacts.js';
 import { extractAuthenticationEvidence } from './emailAuth.js';
@@ -12,13 +7,7 @@ import { analyzeEmailTransmission } from './emailTransmission.js';
 import { analyzeRisk } from './riskEngine.js';
 
 
-/**
- * Validates raw email input before parsing.
- * Rejects empty content or inputs that clearly lack email headers.
- * 
- * @param {string} rawInput 
- * @returns {{ valid: boolean, error?: string }}
- */
+// Validate email input format
 export function validateEmailInput(rawInput) {
   if (typeof rawInput !== 'string' || !rawInput.trim()) {
     return {
@@ -42,25 +31,13 @@ export function validateEmailInput(rawInput) {
   return { valid: true };
 }
 
-/**
- * Unfolds RFC 5322 folded multiline headers.
- * Continuation lines begin with a SPACE (0x20) or TAB (0x09).
- * 
- * @param {string} headerBlock 
- * @returns {string}
- */
+// Unfold multiline headers
 export function unfoldHeaders(headerBlock) {
   if (!headerBlock) return '';
   return headerBlock.replace(/\r?\n([ \t]+)/g, ' $1').replace(/[ \t]+/g, ' ');
 }
 
-/**
- * Parses raw header block into an array of { name, value } pairs.
- * Preserves duplicate headers (e.g. multiple Received headers) and original order.
- * 
- * @param {string} headerBlock 
- * @returns {Array<{ name: string, value: string }>}
- */
+// Parse header key-value pairs
 export function parseHeaderLines(headerBlock) {
   if (!headerBlock) return [];
 
@@ -99,12 +76,7 @@ export function parseHeaderLines(headerBlock) {
   return allHeaders;
 }
 
-/**
- * Splits comma-separated address lists (e.g. "a@b.com, Name <c@d.com>")
- * 
- * @param {string} headerValue 
- * @returns {string[]}
- */
+// Parse comma-separated address list
 export function parseAddressList(headerValue) {
   if (!headerValue || !headerValue.trim()) return [];
 
@@ -138,12 +110,7 @@ export function parseAddressList(headerValue) {
   return addresses;
 }
 
-/**
- * Splits space-separated message IDs (e.g. for References header)
- * 
- * @param {string} headerValue 
- * @returns {string[]}
- */
+// Parse references list
 export function parseReferencesList(headerValue) {
   if (!headerValue || !headerValue.trim()) return [];
   const matches = headerValue.match(/<[^>]+>/g);
@@ -153,13 +120,7 @@ export function parseReferencesList(headerValue) {
   return headerValue.split(/\s+/).map((v) => v.trim()).filter(Boolean);
 }
 
-/**
- * Parses MIME header parameter values like: boundary="----=_Part_123" or filename="doc.pdf"
- * 
- * @param {string} headerValue 
- * @param {string} paramName 
- * @returns {string|null}
- */
+// Parse MIME parameter value
 export function getMimeParameter(headerValue, paramName) {
   if (!headerValue) return null;
   const regex = new RegExp(`${paramName}\\s*=\\s*(?:"([^"]+)"|'([^']+)'|([^;\\s]+))`, 'i');
@@ -168,10 +129,7 @@ export function getMimeParameter(headerValue, paramName) {
   return match[1] || match[2] || match[3] || null;
 }
 
-/**
- * Parses MIME body and extracts text, html, MIME parts, and attachment metadata.
- * Handles nested multiparts (multipart/mixed, multipart/alternative, multipart/related).
- */
+// Parse MIME multipart structure
 export function parseMimeStructure(contentTypeHeader, bodyContent, warnings = []) {
   const parts = [];
   const attachments = [];
@@ -300,13 +258,7 @@ export function parseMimeStructure(contentTypeHeader, bodyContent, warnings = []
   };
 }
 
-/**
- * Canonical RFC 5322 & MIME Email Parser
- * Converts raw email text or .eml content into ONE canonical Normalized Email Object.
- * 
- * @param {string} rawInput 
- * @returns {{ success: boolean, data?: object, error?: string, warnings?: string[] }}
- */
+// Parse raw email into canonical model
 export function parseRawEmail(rawInput) {
   const validation = validateEmailInput(rawInput);
   if (!validation.valid) {
@@ -448,13 +400,13 @@ export function parseRawEmail(rawInput) {
       })
     };
 
-    // Phase 4: Sender Identity & Header Consistency Forensics
+    // Sender identity forensics
     normalizedEmail.senderIdentity = analyzeSenderIdentity(normalizedEmail);
 
-    // Phase 5: Header Transmission & Hop Analysis
+    // Transmission hop analysis
     normalizedEmail.transmission = analyzeEmailTransmission(normalizedEmail);
 
-    // Phase 7: Threat Intelligence Model (Initial un-enriched / offline state; contributes 0 risk points)
+    // Threat intelligence defaults
     normalizedEmail.threatIntel = {
       status: 'unavailable',
       provider: 'none',
@@ -474,10 +426,10 @@ export function parseRawEmail(rawInput) {
       }
     };
 
-    // Phase 6: Deterministic Forensic Risk Engine
+    // Risk engine analysis
     normalizedEmail.risk = analyzeRisk(normalizedEmail);
 
-    // Phase 8: Explainable AI Analysis Model (Initial un-run state; does not alter risk score)
+    // AI analysis defaults
     normalizedEmail.aiAnalysis = {
       status: 'NOT_RUN',
       model: null,

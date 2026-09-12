@@ -1,10 +1,6 @@
 import { prisma } from './prisma.js';
 
-/**
- * Helper to resolve or guarantee a valid Profile in Supabase.
- * Uses the logged-in Clerk user if available, or falls back to the registered
- * SOC analyst profile so foreign key constraints are always satisfied.
- */
+// Resolve user profile for database persistence
 export async function resolveUserProfile() {
   try {
     let clerk = null;
@@ -69,19 +65,7 @@ export async function resolveUserProfile() {
   }
 }
 
-/**
- * Automatically persists or updates an email and its analysis result in Supabase
- *
- * @param {Object} params
- * @param {string} params.sender - Email sender address
- * @param {string} params.subject - Email subject
- * @param {string} params.body - Email body or raw content
- * @param {number} [params.riskScore=0] - Risk score (0-100)
- * @param {string} [params.classification='ANALYZED'] - Threat classification
- * @param {string} [params.explanation=''] - Forensic explanation
- * @param {string} [params.emailId] - Optional existing email ID to update
- * @returns {Promise<Object>} The persisted email record with analysisResults
- */
+// Persist email and analysis results to database
 export async function autoPersistEmailToSupabase({
   sender,
   subject,

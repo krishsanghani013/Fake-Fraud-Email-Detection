@@ -1,20 +1,6 @@
 import { enrichThreatIntel } from '../../../lib/threatIntel.js';
 
-/**
- * POST /api/threat-intel
- * 
- * Server-side Threat Intelligence Enrichment API endpoint.
- * Enriches extracted email artifacts (public IPs, normalized URLs, domains)
- * with threat reputation data from configured providers.
- * 
- * SECURITY & PRIVACY CONTROLS:
- * - Server-side only; API credentials are never exposed to clients.
- * - Does not fetch, crawl, or execute arbitrary URLs (SSRF prevention).
- * - Private/loopback IPs are filtered out by the threat intelligence engine.
- * - Minimum required artifacts only; raw email text and headers are never sent.
- * 
- * Request body: { "artifacts": { "urls": [], "ips": [], "domains": [] }, "providerName"?: string }
- */
+// POST /api/threat-intel - Enrich artifacts
 export async function POST(request) {
   try {
     let body;
@@ -42,7 +28,7 @@ export async function POST(request) {
       );
     }
 
-    // SSRF / Payload safety: ensure arrays contain strings or basic objects
+    // Sanitize artifact payload
     const sanitizedArtifacts = {
       ips: Array.isArray(artifacts.ips)
         ? artifacts.ips.filter((item) => typeof item === 'string' || (typeof item === 'object' && item?.address))
@@ -70,7 +56,7 @@ export async function POST(request) {
       { status: 200 }
     );
   } catch (err) {
-    // Graceful error fallback: never expose internal stack trace
+    // Fallback error response
     return Response.json(
       {
         success: false,

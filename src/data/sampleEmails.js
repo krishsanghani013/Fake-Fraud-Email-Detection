@@ -1,6 +1,4 @@
-/**
- * Realistic RFC 5322 Sample Emails for Testing & Demonstration
- */
+// RFC 5322 test samples
 
 export const SAMPLE_EMAILS = [
   {

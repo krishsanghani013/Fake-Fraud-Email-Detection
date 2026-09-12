@@ -1,24 +1,6 @@
-/**
- * Phase 4 — Sender Identity & Header Consistency Forensics
- * 
- * Deterministically extracts sender identities from RFC 5322 headers (From, Reply-To, Return-Path)
- * and Phase 3 authentication evidence (SPF, DKIM, DMARC), and performs exact-domain consistency comparisons.
- * 
- * FORENSIC PRINCIPLE:
- * This module identifies OBSERVED HEADER CONSISTENCIES AND MISMATCHES.
- * It does NOT perform risk scoring, does NOT perform DNS or network queries,
- * and does NOT declare an email to be fraudulent or malicious.
- */
+// Sender identity and consistency forensics
 
-/**
- * Normalizes a domain name for deterministic comparison:
- * - Converts to lowercase
- * - Strips leading/trailing whitespace
- * - Strips trailing dot
- * 
- * @param {string} domain 
- * @returns {string|null}
- */
+// Normalize domain for comparison
 export function normalizeDomain(domain) {
   if (!domain || typeof domain !== 'string') return null;
   let clean = domain.trim().toLowerCase();
@@ -28,20 +10,7 @@ export function normalizeDomain(domain) {
   return clean || null;
 }
 
-/**
- * Deterministically compares two domain names.
- * 
- * Rules:
- * 1. Case-insensitive
- * 2. Trailing-dot normalized
- * 3. Exact matching only — does NOT treat subdomains as equivalent
- *    (e.g., mail.example.com != example.com)
- * 4. No substring matching
- * 
- * @param {string} domainA 
- * @param {string} domainB 
- * @returns {boolean}
- */
+// Compare two domains exactly
 export function compareDomains(domainA, domainB) {
   const normA = normalizeDomain(domainA);
   const normB = normalizeDomain(domainB);
@@ -50,17 +19,7 @@ export function compareDomains(domainA, domainB) {
   return normA === normB;
 }
 
-/**
- * Extracts normalized email address and domain from an address string.
- * Supports:
- * - "Display Name <user@example.com>"
- * - "<user@example.com>"
- * - "user@example.com"
- * - Quoted display names: "\"John Doe\" <john@example.com>"
- * 
- * @param {string} rawAddress 
- * @returns {{ address: string|null, domain: string|null, raw: string|null }}
- */
+// Extract email address and domain
 export function extractEmailAndDomain(rawAddress) {
   if (!rawAddress || typeof rawAddress !== 'string') {
     return {
@@ -94,19 +53,7 @@ export function extractEmailAndDomain(rawAddress) {
   };
 }
 
-/**
- * Extracts primary sender identities across all available sources in the email.
- * Sources:
- * 1. From (metadata.from / headers)
- * 2. Reply-To (metadata.replyTo / headers)
- * 3. Return-Path (metadata.returnPath / headers)
- * 4. SPF authenticated / envelope domain (authentication.spf.results)
- * 5. DKIM signing domain (authentication.dkim.signatures)
- * 6. DMARC header.from domain (authentication.dmarc.results)
- * 
- * @param {object} emailData 
- * @returns {object} Normalized identities object
- */
+// Extract primary sender identities
 export function extractSenderIdentities(emailData) {
   const identities = {
     from: null,
@@ -218,25 +165,7 @@ export function extractSenderIdentities(emailData) {
   return identities;
 }
 
-/**
- * Analyzes sender identity consistency across headers and authentication records.
- * Performs deterministic comparisons between From and:
- * - Reply-To (each independently)
- * - Return-Path
- * - SPF domains (each independently)
- * - DKIM domains (each independently)
- * - DMARC header.from
- * 
- * Emits stable finding IDs:
- * - FROM_REPLY_TO_DOMAIN_MISMATCH
- * - FROM_RETURN_PATH_DOMAIN_MISMATCH
- * - FROM_SPF_DOMAIN_MISMATCH
- * - FROM_DKIM_DOMAIN_MISMATCH
- * - FROM_DMARC_HEADER_FROM_MISMATCH
- * 
- * @param {object} emailData Canonical parsed email object
- * @returns {object} Normalized senderIdentity object
- */
+// Master sender identity analysis
 export function analyzeSenderIdentity(emailData) {
   const identities = extractSenderIdentities(emailData);
   const comparisons = [];
@@ -246,9 +175,7 @@ export function analyzeSenderIdentity(emailData) {
   const fromAddress = identities.from?.address || null;
   const fromRaw = identities.from?.raw || null;
 
-  // ---------------------------------------------------------------------------
-  // 1. From vs Reply-To Analysis
-  // ---------------------------------------------------------------------------
+  // From vs Reply-To
   if (!fromDomain || identities.replyTo.length === 0) {
     comparisons.push({
       type: 'from_vs_reply_to',
@@ -353,9 +280,7 @@ export function analyzeSenderIdentity(emailData) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 2. From vs Return-Path Analysis
-  // ---------------------------------------------------------------------------
+  // From vs Return-Path
   const returnPathDomain = identities.returnPath?.domain || null;
   const returnPathAddress = identities.returnPath?.address || null;
   const returnPathRaw = identities.returnPath?.raw || null;
@@ -439,9 +364,7 @@ export function analyzeSenderIdentity(emailData) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 3. From vs SPF Domain Analysis
-  // ---------------------------------------------------------------------------
+  // From vs SPF
   if (!fromDomain || identities.spf.length === 0) {
     comparisons.push({
       type: 'from_vs_spf',
@@ -525,9 +448,7 @@ export function analyzeSenderIdentity(emailData) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 4. From vs DKIM Domain Analysis
-  // ---------------------------------------------------------------------------
+  // From vs DKIM
   if (!fromDomain || identities.dkim.length === 0) {
     comparisons.push({
       type: 'from_vs_dkim',
@@ -611,9 +532,7 @@ export function analyzeSenderIdentity(emailData) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 5. From vs DMARC header.from Analysis
-  // ---------------------------------------------------------------------------
+  // From vs DMARC
   if (!fromDomain || identities.dmarc.length === 0) {
     comparisons.push({
       type: 'from_vs_dmarc_header_from',

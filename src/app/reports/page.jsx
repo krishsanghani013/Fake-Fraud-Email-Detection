@@ -31,7 +31,7 @@ export default function ReportsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('history'); // 'history' | 'templates'
-  // Instant synchronous cache initialization for 0ms page switch
+  // Initialize from cache
   const [dbEmails, setDbEmails] = useState(() => getCachedEmailsSync() || []);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRisk, setSelectedRisk] = useState('ALL');
@@ -54,7 +54,7 @@ export default function ReportsPage() {
     return 'LOW';
   };
 
-  // Filter items
+  // Filter reports
   const filteredItems = allItems.filter((item) => {
     const sender = (item.sender || item.senderEmail || '').toLowerCase();
     const subject = (item.subject || '').toLowerCase();
@@ -68,7 +68,7 @@ export default function ReportsPage() {
     return matchesSearch && matchesRisk;
   });
 
-  // Sort items
+  // Sort reports
   const sortedItems = [...filteredItems].sort((a, b) => {
     if (sortBy === 'risk-desc') {
       return (b.riskScore ?? 0) - (a.riskScore ?? 0);

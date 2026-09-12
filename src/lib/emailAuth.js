@@ -1,26 +1,6 @@
-/**
- * Phase 3 — Email Authentication Forensics Module
- * 
- * Deterministic extraction and normalization of authentication evidence from email headers.
- * 
- * Handles:
- * - Authentication-Results (SPF, DKIM, DMARC, ARC)
- * - Received-SPF
- * - DKIM-Signature
- * - ARC-Seal, ARC-Message-Signature, ARC-Authentication-Results
- * 
- * IMPORTANT FORENSIC PRINCIPLE:
- * This module extracts OBSERVED EVIDENCE as reported by message headers.
- * It does NOT perform cryptographic verification, DNS queries, or external network requests.
- * It does NOT assign risk scores, trust levels, or speculative malicious verdicts.
- */
+// Email authentication forensics
 
-/**
- * Parses tags in format "tag1=val1; tag2=val2"
- * 
- * @param {string} text 
- * @returns {Record<string, string>}
- */
+// Parse semicolon tag-value pairs
 function parseTagValues(text) {
   if (!text) return {};
   const tags = {};
@@ -39,12 +19,7 @@ function parseTagValues(text) {
   return tags;
 }
 
-/**
- * Parses canonicalization tag "c=header/body"
- * 
- * @param {string} cVal 
- * @returns {{ header: string, body: string } | null}
- */
+// Parse canonicalization header/body tag
 function parseCanonicalization(cVal) {
   if (!cVal) return null;
   const clean = cVal.trim().toLowerCase();
@@ -55,12 +30,7 @@ function parseCanonicalization(cVal) {
   return { header: clean, body: 'simple' };
 }
 
-/**
- * Extracts a domain from an email address or domain string
- * 
- * @param {string} str 
- * @returns {string|null}
- */
+// Extract domain from string
 function extractDomain(str) {
   if (!str) return null;
   const clean = str.replace(/[<>]/g, '').trim().toLowerCase();
@@ -71,13 +41,7 @@ function extractDomain(str) {
   return clean || null;
 }
 
-/**
- * Parses all Authentication-Results headers.
- * Preserves all occurrences.
- * 
- * @param {Array<{ name: string, value: string }>} headers 
- * @returns {Array<object>}
- */
+// Parse Authentication-Results headers
 export function parseAuthenticationResults(headers = []) {
   const matching = headers.filter((h) => h.name.toLowerCase() === 'authentication-results');
   const results = [];
@@ -180,13 +144,7 @@ export function parseAuthenticationResults(headers = []) {
   return results;
 }
 
-/**
- * Parses all Received-SPF headers.
- * Preserves all occurrences.
- * 
- * @param {Array<{ name: string, value: string }>} headers 
- * @returns {Array<object>}
- */
+// Parse Received-SPF headers
 export function parseReceivedSpf(headers = []) {
   const matching = headers.filter((h) => h.name.toLowerCase() === 'received-spf');
   const results = [];
@@ -226,13 +184,7 @@ export function parseReceivedSpf(headers = []) {
   return results;
 }
 
-/**
- * Parses all DKIM-Signature headers.
- * Preserves all occurrences.
- * 
- * @param {Array<{ name: string, value: string }>} headers 
- * @returns {Array<object>}
- */
+// Parse DKIM-Signature headers
 export function parseDkimSignatures(headers = []) {
   const matching = headers.filter((h) => h.name.toLowerCase() === 'dkim-signature');
   const signatures = [];
@@ -269,13 +221,7 @@ export function parseDkimSignatures(headers = []) {
   return signatures;
 }
 
-/**
- * Parses ARC headers: ARC-Seal, ARC-Message-Signature, ARC-Authentication-Results.
- * Preserves all occurrences and instance numbers.
- * 
- * @param {Array<{ name: string, value: string }>} headers 
- * @returns {{ seals: Array, messageSignatures: Array, authenticationResults: Array }}
- */
+// Parse ARC headers
 export function parseArcHeaders(headers = []) {
   const seals = [];
   const messageSignatures = [];
@@ -338,14 +284,7 @@ export function parseArcHeaders(headers = []) {
   };
 }
 
-/**
- * Reconciles SPF results from Authentication-Results and Received-SPF without
- * discarding conflicting evidence.
- * 
- * @param {Array<object>} authResults 
- * @param {Array<object>} recSpf 
- * @returns {Array<object>}
- */
+// Reconcile SPF results
 function reconcileSpfResults(authResults, recSpf) {
   const results = [];
 
@@ -377,12 +316,7 @@ function reconcileSpfResults(authResults, recSpf) {
   return results;
 }
 
-/**
- * Collects DKIM results from Authentication-Results.
- * 
- * @param {Array<object>} authResults 
- * @returns {Array<object>}
- */
+// Collect DKIM results
 function collectDkimResults(authResults) {
   const results = [];
 
@@ -402,12 +336,7 @@ function collectDkimResults(authResults) {
   return results;
 }
 
-/**
- * Collects DMARC results from Authentication-Results.
- * 
- * @param {Array<object>} authResults 
- * @returns {Array<object>}
- */
+// Collect DMARC results
 function collectDmarcResults(authResults) {
   const results = [];
 
@@ -427,14 +356,7 @@ function collectDmarcResults(authResults) {
   return results;
 }
 
-/**
- * Master Authentication Evidence Extraction Function.
- * Orchestrates parsing of Authentication-Results, Received-SPF, DKIM-Signature,
- * and ARC headers.
- * 
- * @param {object} parsedEmail 
- * @returns {object} Canonical authentication object
- */
+// Master authentication forensics extraction
 export function extractAuthenticationEvidence(parsedEmail) {
   const headers = parsedEmail?.headers?.all || [];
 

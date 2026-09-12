@@ -1,22 +1,8 @@
-/**
- * Phase 7 — AbuseIPDB v2 Threat Intelligence Adapter
- * 
- * Server-side adapter for AbuseIPDB IP reputation lookup API.
- * 
- * SECURITY:
- * - Runs strictly server-side; API key is never exposed.
- * - Only queries explicit public IP addresses.
- * - Enforces request timeouts.
- */
+// AbuseIPDB v2 threat intel adapter
 
 import { BaseThreatIntelProvider, THREAT_VERDICTS } from './provider.js';
 
 export class AbuseIpdbAdapter extends BaseThreatIntelProvider {
-  /**
-   * @param {object} config 
-   * @param {string} config.apiKey 
-   * @param {number} config.timeoutMs 
-   */
   constructor(config = {}) {
     super('AbuseIPDB', config);
     this.apiKey = config.apiKey || process.env.ABUSEIPDB_API_KEY || '';

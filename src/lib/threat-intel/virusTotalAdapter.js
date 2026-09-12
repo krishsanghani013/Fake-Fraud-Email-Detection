@@ -1,22 +1,8 @@
-/**
- * Phase 7 — VirusTotal v3 Threat Intelligence Adapter
- * 
- * Server-side adapter for VirusTotal v3 API.
- * 
- * SECURITY:
- * - Runs strictly server-side; API keys are never exposed to clients.
- * - Does not navigate or fetch target URLs.
- * - Enforces request timeouts via AbortController.
- */
+// VirusTotal v3 threat intel adapter
 
 import { BaseThreatIntelProvider, THREAT_VERDICTS } from './provider.js';
 
 export class VirusTotalAdapter extends BaseThreatIntelProvider {
-  /**
-   * @param {object} config 
-   * @param {string} config.apiKey 
-   * @param {number} config.timeoutMs 
-   */
   constructor(config = {}) {
     super('VirusTotal', config);
     this.apiKey = config.apiKey || process.env.VIRUSTOTAL_API_KEY || '';

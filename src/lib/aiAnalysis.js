@@ -1,19 +1,4 @@
-/**
- * Phase 8 — Explainable AI Analysis with Gemini
- * 
- * Provides an evidence-grounded interpretation layer on top of deterministic forensic evidence.
- * 
- * CORE FORENSIC PRINCIPLES:
- * 1. Interpretation, Not Invention: Gemini interprets existing evidence from Phases 1–7;
- *    it NEVER invents artifacts, IPs, URLs, domains, authentication results, or CVEs.
- * 2. Authoritative Score Protection: The Phase 6 deterministic risk score and level
- *    are authoritative and CANNOT be recalculated or overridden by the AI model.
- * 3. Evidence Grounding: Every claim must cite valid evidence IDs (AUTH-xxx, IDENTITY-xxx,
- *    TRANSMISSION-xxx, INTEL-xxx, RISK-xxx). Hallucinated IDs are rejected.
- * 4. Prompt Injection Defense: Untrusted email data is strictly delimited and isolated.
- * 5. Privacy & Data Minimization: Full raw email and binaries are never sent to the LLM.
- * 6. Graceful Degradation: An AI failure or unavailable key NEVER increases risk score (0 pts).
- */
+// Explainable AI analysis with Gemini
 
 export const AI_STATUS = Object.freeze({
   NOT_RUN: 'NOT_RUN',
@@ -28,13 +13,7 @@ export const ALLOWED_SEVERITIES = Object.freeze(['INFO', 'LOW', 'MEDIUM', 'HIGH'
 export const ALLOWED_CONFIDENCE = Object.freeze(['HIGH', 'MEDIUM', 'LOW']);
 export const ALLOWED_RISK_LEVELS = Object.freeze(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
 
-/**
- * Builds a structured, indexed evidence package from canonical emailData.
- * Assigns stable, unique evidence IDs and tracks provenance.
- * 
- * @param {object} emailData Canonical parsed email object
- * @returns {object} Evidence package with indexed evidence items and validEvidenceIds set
- */
+// Build structured evidence package
 export function buildEvidencePackage(emailData) {
   if (!emailData || typeof emailData !== 'object') {
     return {
@@ -414,13 +393,7 @@ export function buildEvidencePackage(emailData) {
   };
 }
 
-/**
- * Builds the system instructions and prompt package for Gemini.
- * Employs strict prompt-injection delimitation.
- * 
- * @param {object} evidencePackage 
- * @returns {{ systemInstruction: string, promptText: string }}
- */
+// Build Gemini analysis prompt
 export function buildGeminiPrompt(evidencePackage) {
   const systemInstruction = `You are Aegis AI, an explainable email forensics interpretation assistant.
 Your task is to interpret and explain structured forensic evidence produced by a deterministic analysis pipeline.
@@ -518,14 +491,7 @@ You MUST format your entire response as a JSON object with this EXACT structure:
   return { systemInstruction, promptText };
 }
 
-/**
- * Strictly validates Gemini's response JSON.
- * Rejects responses that hallucinate evidence IDs, modify the risk score, or violate the schema.
- * 
- * @param {object} responseJson Parsed JSON from Gemini
- * @param {object} evidencePackage Canonical evidence package used to prompt the model
- * @returns {{ valid: boolean, data?: object, errors?: string[] }}
- */
+// Validate Gemini response schema
 export function validateAiAnalysis(responseJson, evidencePackage) {
   const errors = [];
 
@@ -655,18 +621,7 @@ export function validateAiAnalysis(responseJson, evidencePackage) {
   return { valid: true, error: null, errors: [], data: responseJson };
 }
 
-/**
- * Synthesizes a structured, evidence-grounded forensic explanation directly from
- * the Phase 1–7 deterministic evidence package when Gemini API is unavailable or times out.
- * 
- * Complies 100% with forensic evidence grounding, schema constraints, and score protection.
- * 
- * @param {object} evidencePackage Canonical evidence package from buildEvidencePackage
- * @param {object} [options]
- * @param {string} [options.model] Active model identifier
- * @param {string} [options.reason] Failure reason triggering offline fallback
- * @returns {object} Canonical data.aiAnalysis object with status AVAILABLE and fallbackEngaged: true
- */
+// Deterministic fallback analysis
 export function generateDeterministicFallbackAnalysis(evidencePackage, options = {}) {
   const generatedAt = new Date().toISOString();
   const model = options.model || process.env.GEMINI_MODEL || 'gemini-3.6-flash';
@@ -842,22 +797,7 @@ export function generateDeterministicFallbackAnalysis(evidencePackage, options =
   };
 }
 
-/**
- * Server-side orchestrator that generates an explainable AI analysis for an email.
- * Supports mock responses for unit testing and offline development.
- * 
- * @param {object} emailData Canonical email data or evidence package
- * @param {object} [options]
- * @param {string} [options.apiKey] Gemini API Key (defaults to process.env.GEMINI_API_KEY)
- * @param {string} [options.model] Gemini Model (defaults to process.env.GEMINI_MODEL || "gemini-3.6-flash")
- * @param {number} [options.timeoutMs] Timeout in ms (defaults to 30000)
- * @param {boolean} [options.allowFallback] If true (default), falls back to deterministic synthesis on timeout/socket error
- * @param {object|string} [options.mockResponse] Mock Gemini response object or JSON string (for testing)
- * @param {object|string} [options.mockResponseJson] Alias for mockResponse
- * @param {boolean} [options.simulateTimeout] Simulates a network timeout (for testing)
- * @param {number} [options.simulateHttpError] Simulates an HTTP error status code (for testing)
- * @returns {Promise<object>} Canonical data.aiAnalysis object
- */
+// Orchestrate explainable AI analysis
 export async function generateAiAnalysis(emailData, options = {}) {
   const generatedAt = new Date().toISOString();
   const evidencePackage = emailData.evidenceItems ? emailData : buildEvidencePackage(emailData);

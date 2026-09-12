@@ -1,14 +1,7 @@
 import { parseRawEmail } from '../../../lib/emailParser.js';
 import { autoPersistEmailToSupabase } from '../../../lib/emailPersistence.js';
 
-/**
- * POST /api/parse-eml
- * 
- * Core RFC 5322 Ingestion and Parsing API endpoint.
- * Ingests raw email / .eml text and returns the canonical normalized email object.
- * 
- * Request body: { "emlContent": string }
- */
+// POST /api/parse-eml - Ingest RFC 5322 email
 export async function POST(request) {
   try {
     let body;
@@ -51,7 +44,7 @@ export async function POST(request) {
       );
     }
 
-    // Automatically record in Supabase database
+    // Persist email to Supabase
     let savedRecord = null;
     try {
       const sender = result.data?.metadata?.from || 'eml-upload@workbench.internal';
@@ -83,7 +76,7 @@ export async function POST(request) {
       { status: 200 }
     );
   } catch {
-    // Return sanitized error without internal stack traces
+    // Sanitized error response
     return Response.json(
       {
         success: false,

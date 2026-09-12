@@ -159,7 +159,7 @@ export default function UploadPage() {
   const { toast } = useToast();
   const fileInputRef = useRef(null);
 
-  // Ingestion Mode: 'paste' | 'upload'
+  // Ingestion mode
   const [ingestionMode, setIngestionMode] = useState('paste');
 
   // Input states
@@ -167,17 +167,17 @@ export default function UploadPage() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Parsed Email & Validation
+  // Parsed email state
   const [parsedData, setParsedData] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [warnings, setWarnings] = useState([]);
 
-  // Supabase Database Persistence State
+  // Database persistence state
   const [isSaving, setIsSaving] = useState(false);
   const [savedRecord, setSavedRecord] = useState(null);
   const lastSavedFingerprintRef = useRef('');
 
-  // Check for pre-loaded upload from dashboard drop
+  // Check pending upload
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const pendingUpload = sessionStorage.getItem('pending_eml_upload');
@@ -203,7 +203,7 @@ export default function UploadPage() {
 
     const fingerprint = `${sender}:::${subject}:::${body.slice(0, 100)}:::${riskScore}:::${aiExplanation ? 'ai' : 'raw'}`;
     if (!customAnalysis && lastSavedFingerprintRef.current === fingerprint) {
-      return; // Already auto-saved this exact payload
+      return; // Deduplicate save
     }
 
     setIsSaving(true);
@@ -238,7 +238,7 @@ export default function UploadPage() {
     }
   };
 
-  // Auto-parse pasted raw text with debounce & automatic Supabase persistence
+  // Debounced auto-parse
   useEffect(() => {
     if (ingestionMode === 'paste') {
       if (!rawText.trim()) {
@@ -270,7 +270,7 @@ export default function UploadPage() {
     }
   }, [rawText, ingestionMode]);
 
-  // Process .eml file upload
+  // Process .eml file
   const processEmailFile = (file) => {
     setErrorMessage('');
     setWarnings([]);
@@ -328,7 +328,7 @@ export default function UploadPage() {
     reader.readAsText(file);
   };
 
-  // Drag and drop handlers
+  // Drag-and-drop handlers
   const handleDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);

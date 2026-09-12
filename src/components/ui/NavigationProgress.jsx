@@ -3,18 +3,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 
-/**
- * NavigationProgress provides instant visual feedback (< 1ms)
- * when a user clicks any navigation link.
- * Smoothly animates along the top edge of the screen and completes on pathname change.
- */
+// Route progress indicator
 export function NavigationProgress() {
   const pathname = usePathname();
   const [isNavigating, setIsNavigating] = useState(false);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef(null);
 
-  // When route changes, complete progress quickly and fade out
+  // Complete on route change
   useEffect(() => {
     if (isNavigating) {
       setProgress(100);
@@ -26,17 +22,16 @@ export function NavigationProgress() {
     }
   }, [pathname]);
 
-  // Global click interceptor for internal links to trigger progress immediately on mousedown/click
+  // Intercept internal link clicks
   useEffect(() => {
     const handleLinkClick = (e) => {
-      // Find closest anchor tag
       const anchor = e.target.closest('a');
       if (!anchor) return;
 
       const href = anchor.getAttribute('href');
       if (!href) return;
 
-      // Ignore external, hash, target blank, or download links
+      // Skip external/blank links
       if (
         href.startsWith('http') ||
         href.startsWith('mailto:') ||
@@ -50,11 +45,10 @@ export function NavigationProgress() {
         return;
       }
 
-      // Check if navigating to the same path
       const currentUrl = window.location.pathname + window.location.search;
       if (href === currentUrl) return;
 
-      // Start navigation indicator immediately
+      // Trigger progress
       setIsNavigating(true);
       setProgress(25);
 

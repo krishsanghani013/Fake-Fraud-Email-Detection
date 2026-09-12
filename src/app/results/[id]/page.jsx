@@ -38,7 +38,7 @@ export default function ResultsPage() {
 
   const [activeTab, setActiveTab] = useState('ai');
   
-  // Instant synchronous initialization from mock data or client cache: 0ms wait!
+  // Initialize scan data
   const [scan, setScan] = useState(() => {
     if (scanId && SAMPLE_SCANS[scanId]) return SAMPLE_SCANS[scanId];
     if (scanId) {
@@ -99,7 +99,7 @@ export default function ResultsPage() {
         return;
       }
 
-      // Fetch dynamic record from Supabase /api/emails/[id]
+      // Fetch record from Supabase
       try {
         const res = await fetch(`/api/emails/${scanId}`);
         if (res.ok) {
@@ -177,13 +177,13 @@ export default function ResultsPage() {
   const score = scan?.riskScore ?? 45;
   const level = scan?.riskLevel || (score >= 80 ? 'CRITICAL' : score >= 50 ? 'HIGH' : score >= 20 ? 'MEDIUM' : 'LOW');
 
-  // Semantic color for progress gauge
+  // Gauge level color
   const levelColor =
     level === 'CRITICAL' ? '#7C3AED' :
     level === 'HIGH' ? '#EF4444' :
     level === 'MEDIUM' ? '#F59E0B' : '#10B981';
 
-  // Finding records for Evidence Explorer
+  // Evidence findings
   const findingsList = [
     {
       id: 'AUTH-001',

@@ -2,15 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 let cachedClient = null;
 
-/**
- * Creates or retrieves a singleton Supabase client for server-only backend operations.
- *
- * Environment variables:
- * - NEXT_PUBLIC_SUPABASE_URL: Supabase Project URL
- * - SUPABASE_SECRET_KEY: Supabase Secret / Service Role Key (server-only)
- *
- * Auth session persistence is disabled since authentication is managed by Clerk.
- */
+// Server-only Supabase client
 export function createSupabaseServerClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
@@ -43,10 +35,7 @@ export function createSupabaseServerClient() {
 export const getSupabaseServerClient = createSupabaseServerClient;
 export const createServerClient = createSupabaseServerClient;
 
-/**
- * Lazily evaluated server instance for direct query access:
- * e.g. await supabaseServer.from('emails').select('*')
- */
+// Lazy server instance proxy
 export const supabaseServer = new Proxy(
   {},
   {

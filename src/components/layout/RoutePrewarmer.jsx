@@ -12,11 +12,7 @@ const CORE_ROUTES = [
   '/results/scan-89421',
 ];
 
-/**
- * RoutePrewarmer runs once during browser idle time to pre-compile and
- * prefetch core routes and warm up the client data cache.
- * Makes subsequent navigations virtually instantaneous.
- */
+// Prewarm core routes on idle
 export function RoutePrewarmer() {
   const router = useRouter();
   const warmedRef = useRef(false);
@@ -26,16 +22,14 @@ export function RoutePrewarmer() {
     warmedRef.current = true;
 
     const schedulePrewarm = () => {
-      // 1. Prefetch core route client bundles
+      // Prefetch route bundles
       CORE_ROUTES.forEach((route) => {
         try {
           router.prefetch(route);
-        } catch (e) {
-          // Non-blocking
-        }
+        } catch (e) {}
       });
 
-      // 2. Warm up client-side emails data cache quietly
+      // Warm email cache
       getEmailsWithSWR(() => {}, { forceRefresh: false }).catch(() => {});
     };
 

@@ -5,11 +5,7 @@ import { autoPersistEmailToSupabase } from '@/lib/emailPersistence';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Helper to resolve or guarantee a valid Profile in Supabase.
- * Uses the logged-in Clerk user if available, or falls back to the registered
- * SOC analyst profile so foreign key constraints are always satisfied.
- */
+// Resolve user profile
 async function resolveUserProfile() {
   try {
     const { userId } = await auth();
@@ -38,7 +34,7 @@ async function resolveUserProfile() {
     console.warn('[API /api/emails] Clerk auth check notice:', err.message);
   }
 
-  // Fallback: lookup primary registered analyst or create guest profile
+  // Fallback analyst profile
   const primaryProfile =
     (await prisma.profile.findFirst({
       where: { email: 'krishsanghani013@gmail.com' }
@@ -59,10 +55,7 @@ async function resolveUserProfile() {
   });
 }
 
-/**
- * GET /api/emails
- * Fetches dynamic emails stored in Supabase with analysis results and profile details.
- */
+// GET /api/emails - Fetch stored emails
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -116,10 +109,7 @@ export async function GET(request) {
   }
 }
 
-/**
- * POST /api/emails
- * Dynamically persists a user-given email and its forensic analysis result to Supabase.
- */
+// POST /api/emails - Persist email and analysis
 export async function POST(request) {
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -147,7 +137,7 @@ export async function POST(request) {
       );
     }
 
-    // Extract dynamic fields from direct properties or nested canonical emailData
+    // Extract email fields
     const canonical = body.emailData || null;
 
     const sender =

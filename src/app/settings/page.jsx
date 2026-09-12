@@ -45,7 +45,7 @@ export default function SettingsPage() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('profile');
 
-  // Profile State
+  // Profile state
   const [displayName, setDisplayName] = useState('');
   const [roleTitle, setRoleTitle] = useState('Lead SOC Analyst & Forensic Lead');
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -53,7 +53,7 @@ export default function SettingsPage() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
 
-  // Preferences State
+  // Preferences state
   const [emailAlerts, setEmailAlerts] = useState({
     criticalFailures: true,
     highRiskDetected: true,
@@ -62,7 +62,7 @@ export default function SettingsPage() {
   });
   const [riskAlertThreshold, setRiskAlertThreshold] = useState('HIGH');
 
-  // API Keys State
+  // API keys state
   const [apiKeys, setApiKeys] = useState([
     {
       id: 'key_1',
@@ -85,7 +85,7 @@ export default function SettingsPage() {
   const [newKeyName, setNewKeyName] = useState('');
   const [generatedKey, setGeneratedKey] = useState(null);
 
-  // Integrations State
+  // Integrations state
   const [emailIntegrations, setEmailIntegrations] = useState({
     gmail: false,
     outlook: true
@@ -94,13 +94,13 @@ export default function SettingsPage() {
   const [webhookSecret, setWebhookSecret] = useState('whsec_99182ab900cde...');
   const [showSecret, setShowSecret] = useState(false);
 
-  // Google Gemini AI Engine Configuration
+  // Gemini configuration
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [geminiModel, setGeminiModel] = useState('gemini-3.6-flash');
   const [isTestingGemini, setIsTestingGemini] = useState(false);
   const [geminiTestResult, setGeminiTestResult] = useState(null);
 
-  // Privacy & Retention State
+  // Privacy state
   const [retentionPeriod, setRetentionPeriod] = useState('30_days');
   const [zeroRetentionMode, setZeroRetentionMode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);

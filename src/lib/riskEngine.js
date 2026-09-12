@@ -1,24 +1,6 @@
-/**
- * Phase 6 — Deterministic Risk Engine
- * 
- * Computes an evidence-first forensic risk assessment by analyzing structured findings
- * from Authentication (Phase 3), Sender Identity (Phase 4), and Transmission (Phase 5).
- * 
- * CORE FORENSIC PRINCIPLES:
- * 1. Evidence-First: Points are awarded ONLY when explicit, observable evidence exists.
- * 2. Missing data is never penalized as a failure (Missing ≠ Malicious).
- * 3. Deduplication: Duplicate reports of identical evidence across multiple headers
- *    do not result in uncontrolled double-counting.
- * 4. Zero External Lookups: No DNS, reverse DNS, GeoIP, WHOIS, or threat intelligence.
- * 5. Zero AI / LLM: Fully deterministic, transparent, and reproducible scoring.
- * 6. Objective Findings: The engine detects anomalies and failures; it does NOT
- *    declare an email to be "confirmed phishing" or an IP "malicious".
- */
+// Deterministic risk engine
 
-/**
- * Deterministic Risk Scoring Policy (Version 1.0)
- * Points allocated per evidence observation.
- */
+// Risk scoring policy
 export const DETERMINISTIC_RISK_POLICY = Object.freeze({
   version: '1.0',
   thresholds: {
@@ -28,43 +10,37 @@ export const DETERMINISTIC_RISK_POLICY = Object.freeze({
     CRITICAL: { min: 80, max: 100 }
   },
   points: {
-    // 1. Authentication Evidence (DMARC, SPF, DKIM)
-    DMARC_FAIL: 20, // Checklist #38: explicit DMARC authentication rejection
-    DMARC_PERMERROR: 10, // DMARC permanent configuration error
-    DMARC_TEMPERROR: 5, // DMARC transient evaluation error
-    SPF_FAIL: 15, // Explicit SPF rejection (-all)
-    SPF_SOFTFAIL: 10, // SPF soft-fail (~all)
-    SPF_PERMERROR: 5, // Malformed SPF record
-    SPF_TEMPERROR: 5, // Transient SPF lookup error
-    DKIM_FAIL: 15, // DKIM signature verification failure
-    DKIM_PERMERROR: 5, // DKIM permanent error
-    DKIM_TEMPERROR: 5, // DKIM temporary error
+    DMARC_FAIL: 20,
+    DMARC_PERMERROR: 10,
+    DMARC_TEMPERROR: 5,
+    SPF_FAIL: 15,
+    SPF_SOFTFAIL: 10,
+    SPF_PERMERROR: 5,
+    SPF_TEMPERROR: 5,
+    DKIM_FAIL: 15,
+    DKIM_PERMERROR: 5,
+    DKIM_TEMPERROR: 5,
 
-    // 2. Sender Identity Consistency Findings
     FROM_REPLY_TO_DOMAIN_MISMATCH: 15,
     FROM_RETURN_PATH_DOMAIN_MISMATCH: 10,
     FROM_SPF_DOMAIN_MISMATCH: 10,
     FROM_DKIM_DOMAIN_MISMATCH: 10,
     FROM_DMARC_HEADER_FROM_MISMATCH: 15,
 
-    // 3. Header Transmission Findings
     NEGATIVE_TRANSMISSION_LATENCY: 10,
     RECEIVED_HOP_HOST_MISMATCH: 10,
     RECEIVED_TIMESTAMP_PARSE_ERROR: 5,
 
-    // 4. Threat Intelligence Reputation Findings (Phase 7 Enrichment)
     IP_REPUTATION_MALICIOUS: 25,
     IP_REPUTATION_SUSPICIOUS: 12,
     URL_REPUTATION_MALICIOUS: 25,
     URL_REPUTATION_SUSPICIOUS: 12,
     DOMAIN_REPUTATION_MALICIOUS: 25,
     DOMAIN_REPUTATION_SUSPICIOUS: 12,
-    // Operational findings carry 0 points (Missing ≠ Malicious, Error ≠ Malicious)
     THREAT_INTEL_UNAVAILABLE: 0,
     THREAT_INTEL_RATE_LIMITED: 0,
     THREAT_INTEL_PROVIDER_ERROR: 0,
 
-    // 5. Phishing, Content Deception & Attack Heuristics (Phase 6 Enhancement)
     PHISHING_CREDENTIAL_HARVESTING: 25,
     PHISHING_ACCOUNT_SUSPENSION_URGENCY: 20,
     PHISHING_FINANCIAL_WIRE_FRAUD: 25,
@@ -81,12 +57,7 @@ export const DETERMINISTIC_RISK_POLICY = Object.freeze({
   }
 });
 
-/**
- * Maps a total numerical score to its deterministic risk level.
- * 
- * @param {number} score 
- * @returns {'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'}
- */
+// Map score to risk level
 export function determineRiskLevel(score) {
   if (score >= 80) return 'CRITICAL';
   if (score >= 50) return 'HIGH';
@@ -94,14 +65,7 @@ export function determineRiskLevel(score) {
   return 'LOW';
 }
 
-/**
- * Evaluates DMARC reported authentication outcomes.
- * Fulfills Checklist item #38: DMARC failures and warning states contribute to forensic risk scoring.
- * 
- * @param {Array<object>} dmarcResults 
- * @param {Set<string>} seenDedupKeys 
- * @returns {Array<object>} List of risk contributions
- */
+// Evaluate DMARC evidence
 function evaluateDmarcEvidence(dmarcResults = [], seenDedupKeys) {
   const contributions = [];
 
@@ -152,13 +116,7 @@ function evaluateDmarcEvidence(dmarcResults = [], seenDedupKeys) {
   return contributions;
 }
 
-/**
- * Evaluates SPF reported authentication outcomes.
- * 
- * @param {Array<object>} spfResults 
- * @param {Set<string>} seenDedupKeys 
- * @returns {Array<object>} List of risk contributions
- */
+// Evaluate SPF evidence
 function evaluateSpfEvidence(spfResults = [], seenDedupKeys) {
   const contributions = [];
 
@@ -213,13 +171,7 @@ function evaluateSpfEvidence(spfResults = [], seenDedupKeys) {
   return contributions;
 }
 
-/**
- * Evaluates DKIM reported authentication outcomes.
- * 
- * @param {Array<object>} dkimResults 
- * @param {Set<string>} seenDedupKeys 
- * @returns {Array<object>} List of risk contributions
- */
+// Evaluate DKIM evidence
 function evaluateDkimEvidence(dkimResults = [], seenDedupKeys) {
   const contributions = [];
 
@@ -270,13 +222,7 @@ function evaluateDkimEvidence(dkimResults = [], seenDedupKeys) {
   return contributions;
 }
 
-/**
- * Evaluates Sender Identity Consistency findings from Phase 4.
- * 
- * @param {Array<object>} identityFindings 
- * @param {Set<string>} seenDedupKeys 
- * @returns {Array<object>} List of risk contributions
- */
+// Evaluate sender identity findings
 function evaluateSenderIdentityFindings(identityFindings = [], seenDedupKeys) {
   const contributions = [];
 
@@ -324,13 +270,7 @@ function evaluateSenderIdentityFindings(identityFindings = [], seenDedupKeys) {
   return contributions;
 }
 
-/**
- * Evaluates Transmission and Hop Analysis findings from Phase 5.
- * 
- * @param {Array<object>} transmissionFindings 
- * @param {Set<string>} seenDedupKeys 
- * @returns {Array<object>} List of risk contributions
- */
+// Evaluate transmission findings
 function evaluateTransmissionFindings(transmissionFindings = [], seenDedupKeys) {
   const contributions = [];
 
@@ -373,16 +313,7 @@ function evaluateTransmissionFindings(transmissionFindings = [], seenDedupKeys) 
   return contributions;
 }
 
-/**
- * Evaluates Threat Intelligence Findings from Phase 7.
- * Confirmed malicious findings contribute +25 pts.
- * Suspicious findings contribute +12 pts.
- * Operational, clean, unknown, or skipped findings contribute 0 pts (Missing ≠ Malicious).
- * 
- * @param {Array<object>} threatIntelFindings 
- * @param {Set<string>} seenDedupKeys 
- * @returns {Array<object>} List of risk contributions
- */
+// Evaluate threat intelligence findings
 function evaluateThreatIntelFindings(threatIntelFindings = [], seenDedupKeys) {
   const contributions = [];
 
@@ -390,7 +321,7 @@ function evaluateThreatIntelFindings(threatIntelFindings = [], seenDedupKeys) {
     if (!f || !f.id) continue;
 
     const points = DETERMINISTIC_RISK_POLICY.points[f.id] || 0;
-    if (points <= 0) continue; // Operational status or clean findings contribute 0 points
+    if (points <= 0) continue;
 
     const artifactKey = f.artifact || f.evidence?.artifact || '';
     const dedupKey = `threat_intel:${f.id}:${artifactKey}`;
@@ -419,9 +350,7 @@ function evaluateThreatIntelFindings(threatIntelFindings = [], seenDedupKeys) {
   return contributions;
 }
 
-/**
- * Curated brand profiles for deterministic brand impersonation & display-name spoofing detection.
- */
+// Brand profiles for impersonation checks
 const BRAND_PROFILES = [
   { name: 'PayPal', pattern: /\bpaypa[lI]\b/i, validDomains: ['paypal.com', 'paypal.me', 'paypal-corp.com'] },
   { name: 'Microsoft', pattern: /\b(?:microsoft|office\s*365|outlook|azure)\b/i, validDomains: ['microsoft.com', 'office.com', 'live.com', 'outlook.com', 'azure.com', 'msn.com'] },
@@ -438,36 +367,23 @@ const BRAND_PROFILES = [
   { name: 'FedEx', pattern: /\bfedex\b/i, validDomains: ['fedex.com'] }
 ];
 
-/**
- * High-abuse top-level domains commonly used in disposable phishing infrastructure.
- */
+// High-abuse TLDs
 const HIGH_ABUSE_TLDS = new Set([
   'xyz', 'top', 'tk', 'click', 'work', 'buzz', 'cam', 'fit', 'surf', 'cf', 'ga', 'ml', 'gq', 'club', 'live', 'online'
 ]);
 
-/**
- * Dangerous executable, script, and installation attachment extensions.
- */
+// Dangerous attachment extensions
 const DANGEROUS_ATTACHMENT_EXTENSIONS = new Set([
   'exe', 'scr', 'bat', 'cmd', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh',
   'ps1', 'ps1xml', 'ps2', 'psc1', 'psc2', 'hta', 'cpl', 'pif', 'iso', 'img', 'lnk', 'reg'
 ]);
 
-/**
- * Macro-enabled document extensions.
- */
+// Macro document extensions
 const MACRO_EXTENSIONS = new Set([
   'docm', 'dotm', 'xlsm', 'xltm', 'xlam', 'pptm', 'potm', 'ppam', 'ppsm'
 ]);
 
-/**
- * Evaluates deterministic phishing cues across body text, URLs, From display name, and attachments.
- * Produces structured evidence-backed risk contributions with zero randomness.
- * 
- * @param {object} emailData 
- * @param {Set<string>} seenDedupKeys 
- * @returns {Array<object>} List of risk contributions
- */
+// Evaluate phishing heuristics
 function evaluatePhishingEvidence(emailData = {}, seenDedupKeys) {
   const contributions = [];
 
@@ -840,13 +756,7 @@ function evaluatePhishingEvidence(emailData = {}, seenDedupKeys) {
   return contributions;
 }
 
-/**
- * Deterministic Master Risk Engine Function.
- * Consumes the canonical normalized email object and produces the canonical data.risk model.
- * 
- * @param {object} emailData Canonical parsed email object
- * @returns {object} Canonical risk model
- */
+// Master risk analysis
 export function analyzeRisk(emailData) {
   if (!emailData || typeof emailData !== 'object') {
     return {
@@ -949,7 +859,4 @@ export function analyzeRisk(emailData) {
   };
 }
 
-/**
- * Public alias for analyzeRisk
- */
 export const calculateRisk = analyzeRisk;

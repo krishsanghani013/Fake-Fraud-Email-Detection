@@ -3,24 +3,7 @@ import { autoPersistEmailToSupabase } from '../../../lib/emailPersistence.js';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * POST /api/ai-inspect
- * 
- * Deep AI Forensic Inspection endpoint powered by Gemini 3.6 / Deterministic Heuristics.
- * Ingests raw email text or structured emailData and produces:
- * - Observable deception indicators with exact quoted evidence snippets
- * - Psychological urgency index & primary threat vector
- * - Interactive text anomaly annotations
- * - 6-stage evidence progression & category budget distribution
- * 
- * Request payload:
- * {
- *   "emailText": string,
- *   "emailData"?: object,
- *   "model"?: string,
- *   "apiKey"?: string
- * }
- */
+// POST /api/ai-inspect - Deep AI inspection
 export async function POST(request) {
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -48,12 +31,12 @@ export async function POST(request) {
       );
     }
 
-    // Extract text from emailText or canonical emailData
+    // Extract email text
     let emailText = body.emailText;
     const emailData = body.emailData || null;
 
     if (!emailText && emailData) {
-      // Reconstruct text representation from canonical email data
+      // Reconstruct text representation
       const subject = emailData.metadata?.subject || '';
       const from = emailData.metadata?.from || '';
       const replyTo = Array.isArray(emailData.metadata?.replyTo) ? emailData.metadata.replyTo.join(', ') : '';
@@ -82,16 +65,16 @@ export async function POST(request) {
       timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS) || 8000
     };
 
-    // Run AI Inspection
+    // Run AI inspection
     const inspectionResult = await inspectEmail(trimmedText, options);
 
-    // Extract anomaly annotations for interactive text viewer
+    // Extract text annotations
     const textAnnotations = extractTextAnnotations(trimmedText, inspectionResult.indicators);
 
-    // Build unified 6-stage evidence flow & category scores
+    // Build unified evidence chain
     const evidenceChain = buildUnifiedEvidenceChain(inspectionResult, emailData);
 
-    // Automatically record in Supabase database
+    // Persist inspection to Supabase
     let savedRecord = null;
     try {
       const fromHeader = emailData?.metadata?.from || 'inspect@workbench.internal';

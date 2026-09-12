@@ -2,10 +2,7 @@ import { currentUser, auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
-/**
- * Synchronizes the currently authenticated Clerk user with the Supabase `profiles` table.
- * Automatically handles create or update (upsert) using Prisma ORM.
- */
+// GET /api/auth/sync - Sync Clerk profile
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -34,7 +31,7 @@ export async function GET() {
       user.username ||
       (email ? email.split('@')[0] : 'Analyst');
 
-    // Upsert the profile in Supabase via Prisma
+    // Upsert profile in Supabase
     const profile = await prisma.profile.upsert({
       where: { id: user.id },
       update: {

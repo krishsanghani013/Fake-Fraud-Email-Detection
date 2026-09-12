@@ -1,26 +1,8 @@
-/**
- * Phase 5 — Header Transmission & Hop Analysis
- * 
- * Deterministically parses and analyzes RFC 5322 Received headers to reconstruct
- * the MTA transmission route, calculate hop-to-hop latencies, classify IP addresses locally,
- * and detect transmission anomalies without any external DNS, GeoIP, or network calls.
- * 
- * FORENSIC PRINCIPLE:
- * Received headers represent server-reported transport evidence.
- * This module records what MTAs reported along the path and identifies observed
- * inconsistencies (e.g. clock skew, hostname discrepancies) without claiming fraud or maliciousness.
- */
+// Header transmission and hop forensics
 
 import { isValidIpv4, isValidIpv6 } from './emailArtifacts.js';
 
-/**
- * Classifies an IP address into standard offline categories.
- * Purely deterministic local classification — zero external lookups.
- * 
- * @param {string} ip 
- * @param {number} version 4 or 6
- * @returns {'private'|'loopback'|'link-local'|'unspecified'|'public'}
- */
+// Classify IP address
 export function classifyIp(ip, version = 4) {
   if (!ip || typeof ip !== 'string') return 'unspecified';
 
@@ -64,12 +46,7 @@ export function classifyIp(ip, version = 4) {
   return 'public';
 }
 
-/**
- * Extracts all valid IPv4 and IPv6 addresses present in a header string.
- * 
- * @param {string} text 
- * @returns {Array<{ address: string, version: number, type: string }>}
- */
+// Extract IP addresses from header text
 export function extractIpsFromText(text) {
   if (!text || typeof text !== 'string') return [];
 
@@ -122,12 +99,7 @@ export function extractIpsFromText(text) {
   return found;
 }
 
-/**
- * Cleans and normalizes hostnames extracted from Received headers.
- * 
- * @param {string} hostStr 
- * @returns {string|null}
- */
+// Normalize hostname
 export function cleanHostname(hostStr) {
   if (!hostStr || typeof hostStr !== 'string') return null;
   let clean = hostStr.trim();
@@ -143,17 +115,7 @@ export function cleanHostname(hostStr) {
   return clean.toLowerCase() || null;
 }
 
-/**
- * Parses a single Received header value into structured transport components.
- * 
- * Syntax generally follows RFC 5321:
- * "from <from> by <by> with <with> id <id> for <for> ; <timestamp>"
- * 
- * @param {string} rawHeader 
- * @param {number} headerIndex Index in top-to-bottom header order
- * @param {number} totalReceived Total count of Received headers
- * @returns {object} Structured hop record
- */
+// Parse single Received header
 export function parseReceivedHeader(rawHeader, headerIndex = 0, totalReceived = 1) {
   const cleanRaw = (rawHeader || '').trim();
 
@@ -273,13 +235,7 @@ export function parseReceivedHeader(rawHeader, headerIndex = 0, totalReceived = 
   };
 }
 
-/**
- * Calculates transmission latency between consecutive chronological hops.
- * Detects negative latency (time running backwards due to clock skew or tampering).
- * 
- * @param {Array<object>} chronologicalHops Hops ordered from oldest to newest
- * @returns {{ latencies: Array<object>, findings: Array<object> }}
- */
+// Calculate hop latencies
 export function calculateHopLatencies(chronologicalHops) {
   const latencies = [];
   const findings = [];
@@ -347,13 +303,7 @@ export function calculateHopLatencies(chronologicalHops) {
   return { latencies, findings };
 }
 
-/**
- * Analyzes continuity between consecutive hops.
- * Checks whether the receiving MTA of hop N aligns with the sending MTA of hop N+1.
- * 
- * @param {Array<object>} chronologicalHops Hops ordered from oldest to newest
- * @returns {Array<object>} Continuity findings
- */
+// Analyze hop continuity
 export function analyzeHopContinuity(chronologicalHops) {
   const findings = [];
 
@@ -396,19 +346,7 @@ export function analyzeHopContinuity(chronologicalHops) {
   return findings;
 }
 
-/**
- * Master Header Transmission & Hop Analysis Function.
- * 
- * Analyzes all Received headers in parsed email to produce:
- * - received: parsed hops in original raw header order (newest to oldest)
- * - hops: parsed hops in chronological transmission order (oldest to newest)
- * - latencies: hop-to-hop transit delays
- * - findings: deterministic anomalies (negative latency, parse errors, continuity mismatches)
- * - summary: overall metrics
- * 
- * @param {object} emailData Canonical parsed email object
- * @returns {object} Canonical transmission object
- */
+// Master transmission analysis
 export function analyzeEmailTransmission(emailData) {
   const allHeaders = emailData?.headers?.all || [];
   const rawReceivedHeaders = allHeaders.filter(

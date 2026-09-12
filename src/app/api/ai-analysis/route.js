@@ -3,17 +3,7 @@ import { autoPersistEmailToSupabase } from '../../../lib/emailPersistence.js';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Phase 8 — Server-Side Explainable AI Analysis Route
- * 
- * POST /api/ai-analysis
- * 
- * SECURITY:
- * - Validates input structures and rejects arbitrary payloads.
- * - Prevents arbitrary prompts from client (server strictly constructs prompts).
- * - Enforces request timeout and payload limits.
- * - Keeps GEMINI_API_KEY strictly server-side.
- */
+// POST /api/ai-analysis - Explainable AI analysis
 export async function POST(request) {
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -62,7 +52,7 @@ export async function POST(request) {
       );
     }
 
-    // Must have deterministic risk assessment from Phase 6 to ground AI explanations
+    // Validate risk assessment
     if (!emailData.risk || typeof emailData.risk.totalScore !== 'number') {
       return Response.json(
         {
@@ -85,7 +75,7 @@ export async function POST(request) {
 
     const aiResult = await generateAiAnalysis(emailData, options);
 
-    // Automatically record in Supabase database
+    // Persist analysis to Supabase
     let savedRecord = null;
     try {
       const sender = emailData.metadata?.from || 'analysis@workbench.internal';

@@ -1,32 +1,9 @@
-/**
- * Phase 2 — Email Artifact Extraction & Normalization
- * 
- * Deterministic extraction and normalization layer operating on top of
- * the Phase 1 canonical normalized email object.
- * 
- * Extracts:
- * 1. URLs (text, HTML, HTML <a href="...">, headers)
- * 2. IP addresses (IPv4 and IPv6 with strict octet/format validation)
- * 3. Domains (from URLs and sender headers, preserving subdomains)
- * 4. Normalized URLs (lowercased protocol/host, default port removal)
- * 5. Sender domains (From, Reply-To, Return-Path)
- * 
- * Strictly local, offline, deterministic, and evidence-preserving.
- * Does NOT execute AI analysis, threat intelligence, DNS queries, or risk scoring.
- */
+// Email artifact extraction and normalization
 
-// Regex for extracting candidate URLs
 const URL_CANDIDATE_REGEX = /\bhttps?:\/\/[^\s<>"'`]+/gi;
-// Regex for HTML <a href="...">
 const HTML_HREF_REGEX = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi;
 
-/**
- * Strips surrounding punctuation, brackets, and trailing sentence punctuation.
- * E.g., "(https://example.com/login)." -> "https://example.com/login"
- * 
- * @param {string} rawUrl 
- * @returns {string}
- */
+// Strip surrounding punctuation
 export function cleanUrlPunctuation(rawUrl) {
   if (!rawUrl || typeof rawUrl !== 'string') return '';
   let cleaned = rawUrl.trim();
@@ -61,19 +38,7 @@ export function cleanUrlPunctuation(rawUrl) {
   return cleaned.trim();
 }
 
-/**
- * Normalizes a URL deterministically:
- * - Lowercase protocol
- * - Lowercase hostname
- * - Remove default port :80 for HTTP
- * - Remove default port :443 for HTTPS
- * - Remove trailing dot from hostname
- * - Preserve path, query string, and fragment
- * - Remove surrounding whitespace
- * 
- * @param {string} rawUrl 
- * @returns {string}
- */
+// Normalize URL format
 export function normalizeUrl(rawUrl) {
   const cleaned = cleanUrlPunctuation(rawUrl);
   if (!cleaned) return '';
@@ -116,12 +81,7 @@ export function normalizeUrl(rawUrl) {
   }
 }
 
-/**
- * Extracts the domain/hostname from a URL string.
- * 
- * @param {string} urlString 
- * @returns {string|null}
- */
+// Extract domain from URL
 export function extractDomainFromUrl(urlString) {
   if (!urlString) return null;
   try {
@@ -142,12 +102,7 @@ export function extractDomainFromUrl(urlString) {
   }
 }
 
-/**
- * Extracts and deduplicates URLs from plain text, HTML body, and HTML href attributes.
- * 
- * @param {object} parsedEmail 
- * @returns {Array<{ original: string, normalized: string, domain: string, source: string }>}
- */
+// Extract URLs from email body
 export function extractUrls(parsedEmail) {
   if (!parsedEmail) return [];
 
@@ -219,13 +174,7 @@ export function extractUrls(parsedEmail) {
   return Array.from(candidateMap.values());
 }
 
-/**
- * Validates IPv4 format and octet ranges (0 - 255).
- * Rejects invalid strings like 999.999.999.999.
- * 
- * @param {string} ip 
- * @returns {boolean}
- */
+// Validate IPv4 format
 export function isValidIpv4(ip) {
   if (!ip || typeof ip !== 'string') return false;
   const match = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
@@ -241,13 +190,7 @@ export function isValidIpv4(ip) {
   return true;
 }
 
-/**
- * Validates IPv6 addresses.
- * Rejects false positives like ordinary timestamps (10:30:45).
- * 
- * @param {string} ip 
- * @returns {boolean}
- */
+// Validate IPv6 format
 export function isValidIpv6(ip) {
   if (!ip || typeof ip !== 'string') return false;
 
@@ -282,12 +225,7 @@ export function isValidIpv6(ip) {
   return true;
 }
 
-/**
- * Extracts and validates IPv4 and IPv6 addresses from Received headers.
- * 
- * @param {object} parsedEmail 
- * @returns {Array<{ address: string, version: number, source: string }>}
- */
+// Extract IP addresses from Received headers
 export function extractIps(parsedEmail) {
   if (!parsedEmail) return [];
 
@@ -346,13 +284,7 @@ export function extractIps(parsedEmail) {
   return Array.from(ipMap.values());
 }
 
-/**
- * Parses the domain portion of an email address string.
- * Supports: "Display Name <user@example.com>", "<user@example.com>", or "user@example.com".
- * 
- * @param {string} emailStr 
- * @returns {string|null}
- */
+// Extract domain from email address
 export function extractDomainFromEmailAddress(emailStr) {
   if (!emailStr || typeof emailStr !== 'string') return null;
 
@@ -371,13 +303,7 @@ export function extractDomainFromEmailAddress(emailStr) {
   return domain || null;
 }
 
-/**
- * Extracts sender-related domains from From, Reply-To, and Return-Path.
- * Does NOT infer Reply-To or Return-Path from From.
- * 
- * @param {object} parsedEmail 
- * @returns {{ from: string[], replyTo: string[], returnPath: string[] }}
- */
+// Extract sender domains
 export function extractSenderDomains(parsedEmail) {
   const result = {
     from: [],
@@ -420,15 +346,7 @@ export function extractSenderDomains(parsedEmail) {
   return result;
 }
 
-/**
- * Extracts and deduplicates domains from URLs and sender headers.
- * Preserves complete subdomains (e.g. login.example.com).
- * 
- * @param {object} parsedEmail 
- * @param {Array} extractedUrls 
- * @param {object} senderDomains 
- * @returns {Array<{ original: string, normalized: string, source: string }>}
- */
+// Extract and deduplicate domains
 export function extractDomains(parsedEmail, extractedUrls = [], senderDomains = { from: [], replyTo: [], returnPath: [] }) {
   const domainMap = new Map(); // normalizedDomain -> { original, normalized, source }
 
@@ -467,14 +385,7 @@ export function extractDomains(parsedEmail, extractedUrls = [], senderDomains = 
   return Array.from(domainMap.values());
 }
 
-/**
- * Master Artifact Extraction Function.
- * Orchestrates URL extraction, URL normalization, IP extraction,
- * sender-domain extraction, and domain extraction.
- * 
- * @param {object} parsedEmail 
- * @returns {{ urls: Array, ips: Array, domains: Array, senderDomains: object }}
- */
+// Master artifact extraction
 export function extractArtifacts(parsedEmail) {
   if (!parsedEmail) {
     return {

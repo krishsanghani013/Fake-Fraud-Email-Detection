@@ -1,18 +1,9 @@
-/**
- * AI Email Forensic Inspector & Deception Engine
- * 
- * Provides evidence-grounded behavioral deception analysis, psychological urgency indexing,
- * text anomaly annotations, and visual evidence flow reconstruction.
- * 
- * Modeled after the comprehensive forensic inspector in krishsanghani013/demo-fake-email-detection.
- */
+// AI forensic email inspector
 
 const MAX_EMAIL_LENGTH = 15000;
 const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
-/**
- * Observable Deception Taxonomy
- */
+// Deception taxonomy
 export const DECEPTION_TAXONOMY = Object.freeze([
   'Potential Brand Impersonation',
   'Account-Security Impersonation',
@@ -83,9 +74,7 @@ ${emailText}
 """
 `;
 
-/**
- * Extracts and parses a JSON object from Gemini's raw output.
- */
+// Parse JSON from Gemini response
 export function parseGeminiJsonResponse(rawText) {
   if (!rawText || typeof rawText !== 'string') {
     throw new Error('Received empty response from Gemini API.');
@@ -109,9 +98,7 @@ export function parseGeminiJsonResponse(rawText) {
   }
 }
 
-/**
- * Normalizes and validates the parsed inspection object.
- */
+// Normalize inspection result
 export function normalizeInspectionResult(data, options = {}) {
   if (!data || typeof data !== 'object') {
     throw new Error('AI analysis result is not a valid object.');
@@ -192,15 +179,7 @@ export function normalizeInspectionResult(data, options = {}) {
   };
 }
 
-/**
- * Evidence-based forensic heuristic analyzer providing reliable forensic evaluation
- * when upstream AI cloud endpoints are unavailable, offline, or when no API key is provided.
- * 
- * Implements the exact same multi-signal contextual taxonomy as the reference model.
- * 
- * @param {string} text - Raw sanitized email text.
- * @returns {object} Normalized forensic inspection result.
- */
+// Deterministic inspection fallback
 export function inspectEmailDeterministic(text) {
   if (typeof text !== 'string') {
     text = '';
@@ -475,17 +454,7 @@ export function inspectEmailDeterministic(text) {
   );
 }
 
-/**
- * Executes a deep AI inspection on email text using Gemini 3.6 with automatic
- * deterministic heuristic fallback if the API key is missing or the endpoint fails.
- * 
- * @param {string} emailText - Raw or parsed email text.
- * @param {object} [options]
- * @param {string} [options.apiKey] - Google Gemini API Key
- * @param {string} [options.model] - Gemini Model identifier (defaults to process.env.GEMINI_MODEL || "gemini-3.6-flash")
- * @param {number} [options.timeoutMs] - Request timeout (defaults to 8000ms)
- * @returns {Promise<object>} Complete inspection result
- */
+// Inspect email with AI and deterministic fallback
 export async function inspectEmail(emailText, options = {}) {
   if (!emailText || typeof emailText !== 'string') {
     throw new Error('Invalid input: emailText must be a non-empty string.');
@@ -576,14 +545,7 @@ export async function inspectEmail(emailText, options = {}) {
   return inspectEmailDeterministic(sanitized);
 }
 
-/**
- * Scans email body text to identify highlighted ranges corresponding to detected indicators.
- * Produces structured tokens for interactive color-coded UI rendering.
- * 
- * @param {string} text - Raw or body text of email.
- * @param {Array<object>} indicators - Extracted indicators.
- * @returns {Array<object>} Array of text annotation segments.
- */
+// Extract text annotations for UI
 export function extractTextAnnotations(text, indicators = []) {
   if (!text || typeof text !== 'string') return [];
 
@@ -652,14 +614,7 @@ export function extractTextAnnotations(text, indicators = []) {
   return annotations.sort((a, b) => a.startIndex - b.startIndex);
 }
 
-/**
- * Assembles the 6-stage explainable evidence progression and category budget meters
- * (Threat Intel, AI Content, Authentication, Sender Identity).
- * 
- * @param {object} aiResult - Output from inspectEmail
- * @param {object} [canonicalData] - Optional full canonical email data
- * @returns {object} Evidence chain with category scores and steps
- */
+// Build unified evidence chain
 export function buildUnifiedEvidenceChain(aiResult, canonicalData = {}) {
   const safeAi = aiResult || inspectEmailDeterministic('');
   const risk = canonicalData?.risk || { totalScore: safeAi.riskScore, level: safeAi.riskLevel, contributions: [] };

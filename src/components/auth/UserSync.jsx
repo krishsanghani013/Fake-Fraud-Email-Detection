@@ -3,10 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 
-/**
- * UserSync automatically synchronizes the authenticated Clerk user
- * into the Supabase database via Prisma whenever a user logs in.
- */
+// Syncs Clerk user with Supabase
 export function UserSync() {
   const { isSignedIn, user, isLoaded } = useUser();
   const syncedUserIdRef = useRef(null);
@@ -14,7 +11,7 @@ export function UserSync() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user) return;
 
-    // Avoid syncing repeatedly for the same user in the current session
+    // Deduplicate user sync
     if (syncedUserIdRef.current === user.id) return;
 
     const syncUserToSupabase = async () => {

@@ -3,11 +3,7 @@ import { autoPersistEmailToSupabase } from '../../../lib/emailPersistence.js';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Phase 9 — API Route: AI-Generated Content Forensic Detection
- * 
- * POST /api/detect-ai-content
- */
+// POST /api/detect-ai-content - Detect AI text
 export async function POST(request) {
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -62,7 +58,7 @@ export async function POST(request) {
 
     const detection = await detectAiGeneratedContent(text, options);
 
-    // Automatically record in Supabase database
+    // Persist detection to Supabase
     let savedRecord = null;
     try {
       const verdict = detection.verdict || 'AI_EVALUATED';

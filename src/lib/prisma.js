@@ -1,10 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-/**
- * Server-only Prisma Client singleton for Next.js App Router.
- * Prevents multiple instances of Prisma Client from being created in development
- * due to Next.js Hot Module Replacement (HMR).
- */
+// Prisma Client singleton
 const globalForPrisma = globalThis;
 
 export const prisma =

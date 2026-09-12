@@ -3,10 +3,7 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * GET /api/emails/[id]
- * Fetches a single dynamic email by its UUID from Supabase.
- */
+// GET /api/emails/[id] - Fetch single email
 export async function GET(_request, { params }) {
   try {
     const resolvedParams = await params;
@@ -58,10 +55,7 @@ export async function GET(_request, { params }) {
   }
 }
 
-/**
- * DELETE /api/emails/[id]
- * Deletes an email from Supabase.
- */
+// DELETE /api/emails/[id] - Delete email
 export async function DELETE(_request, { params }) {
   try {
     const resolvedParams = await params;

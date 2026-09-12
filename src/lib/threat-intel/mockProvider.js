@@ -1,20 +1,8 @@
-/**
- * Phase 7 — Mock Threat Intelligence Provider
- * 
- * Deterministic, offline provider adapter for unit testing, CI/CD, and offline development.
- * Never makes external network calls.
- */
+// Mock threat intelligence provider
 
 import { BaseThreatIntelProvider, THREAT_VERDICTS } from './provider.js';
 
 export class MockThreatIntelProvider extends BaseThreatIntelProvider {
-  /**
-   * @param {object} config 
-   * @param {object} config.mockRules Explicit fixtures: { ips: {}, urls: {}, domains: {} }
-   * @param {string} config.forceStatus Force all queries to return this status ('rate_limited', 'error', 'unavailable')
-   * @param {boolean} config.simulateTimeout If true, simulates a lookup timeout
-   * @param {boolean} config.missingApiKey If true, simulates missing credentials
-   */
   constructor(config = {}) {
     super('MockThreatIntel', config);
     this.mockRules = config.mockRules || config.fixtures || { ips: {}, urls: {}, domains: {} };

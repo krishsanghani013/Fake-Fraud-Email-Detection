@@ -27,7 +27,7 @@ import { useToast } from '../../components/ui/Toast';
 import { SAMPLE_SCANS } from '../../data/mockData';
 import { getCachedEmailsSync, getEmailsWithSWR } from '../../lib/clientDataCache';
 
-// Dynamically load heavy Recharts chart to keep initial bundle tiny and fast
+// Lazy load Recharts chart
 const RiskDonutChart = dynamic(
   () => import('../../components/dashboard/RiskDonutChart').then((mod) => mod.RiskDonutChart),
   {
@@ -45,7 +45,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const { user, isLoaded } = useUser();
   
-  // Instant synchronous cache initialization: 0ms render delay!
+  // Initialize from cache
   const [dbEmails, setDbEmails] = useState(() => getCachedEmailsSync() || []);
   const [isLoading, setIsLoading] = useState(() => !getCachedEmailsSync());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -85,10 +85,10 @@ export default function DashboardPage() {
     fetchEmails();
   }, [fetchEmails]);
 
-  // Combine database records with default mock scans if db is empty for preview
+  // Fallback to sample scans
   const displayList = dbEmails.length > 0 ? dbEmails : Object.values(SAMPLE_SCANS);
 
-  // Stats computation
+  // Compute statistics
   const totalCount = displayList.length;
   const criticalCount = displayList.filter((e) => (e.riskScore ?? 0) >= 80).length;
   const highCount = displayList.filter((e) => (e.riskScore ?? 0) >= 50 && (e.riskScore ?? 0) < 80).length;
@@ -107,7 +107,7 @@ export default function DashboardPage() {
     return 'LOW';
   };
 
-  // Donut chart data for Recharts
+  // Donut chart segments
   const chartData = [
     { name: 'Low Risk', value: lowCount, color: '#10B981', level: 'LOW' },
     { name: 'Medium Risk', value: mediumCount, color: '#F59E0B', level: 'MEDIUM' },
@@ -115,7 +115,7 @@ export default function DashboardPage() {
     { name: 'Critical Risk', value: criticalCount, color: '#7C3AED', level: 'CRITICAL' },
   ].filter((d) => d.value > 0);
 
-  // Filter list by selected segment
+  // Filter by risk level
   const filteredList = displayList.filter((item) => {
     if (selectedRiskFilter === 'ALL') return true;
     const score = item.riskScore ?? 0;
@@ -436,7 +436,7 @@ export default function DashboardPage() {
                       const formattedDate = new Date(dateStr).toLocaleString();
                       const scanTargetId = item.id || `sample-${idx}`;
 
-                      // Left border color according to risk level
+                      // Risk border styling
                       const borderColors = {
                         LOW: 'border-l-[#10B981]',
                         MEDIUM: 'border-l-[#F59E0B]',

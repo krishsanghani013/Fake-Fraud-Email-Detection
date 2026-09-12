@@ -1,20 +1,13 @@
 'use client';
 
-/**
- * High-performance client-side cache for Aegis Forensic records.
- * Uses in-memory caching backed by sessionStorage for instant (0ms) route transitions.
- */
-
+// In-memory client cache with session storage
 let memoryCache = null;
 let lastFetchTime = 0;
-const CACHE_TTL_MS = 30000; // 30 seconds fresh TTL
+const CACHE_TTL_MS = 30000;
 
 const STORAGE_KEY = 'aegis_forensic_emails_cache_v1';
 
-/**
- * Synchronously retrieves cached emails for instant component initialization.
- * Prevents loading flickers and allows instant rendering on page transitions.
- */
+// Retrieve cached emails synchronously
 export function getCachedEmailsSync() {
   if (memoryCache && Array.isArray(memoryCache)) {
     return memoryCache;
@@ -39,9 +32,7 @@ export function getCachedEmailsSync() {
   return null;
 }
 
-/**
- * Updates the client cache in memory and sessionStorage.
- */
+// Update client cache
 export function setCachedEmails(emails) {
   if (!Array.isArray(emails)) return;
   memoryCache = emails;
@@ -52,7 +43,7 @@ export function setCachedEmails(emails) {
       sessionStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          emails: emails.slice(0, 100), // Keep top 100 for lightweight storage
+          emails: emails.slice(0, 100),
           timestamp: lastFetchTime,
         })
       );
@@ -62,9 +53,7 @@ export function setCachedEmails(emails) {
   }
 }
 
-/**
- * Prepend or update an email in the cache immediately after ingestion/analysis.
- */
+// Prepend or update email in cache
 export function addOrUpdateEmailInCache(newEmail) {
   if (!newEmail || !newEmail.id) return;
   const current = getCachedEmailsSync() || [];
@@ -73,25 +62,18 @@ export function addOrUpdateEmailInCache(newEmail) {
   setCachedEmails(updated);
 }
 
-/**
- * Checks if the cached data is stale.
- */
+// Check if cache is stale
 export function isCacheStale() {
   return Date.now() - lastFetchTime > CACHE_TTL_MS;
 }
 
-/**
- * Fetches emails with Stale-While-Revalidate pattern.
- * If cached data exists, calls onData immediately, then revalidates in the background.
- */
+// Fetch emails with SWR pattern
 export async function getEmailsWithSWR(onData, { forceRefresh = false } = {}) {
   const cached = getCachedEmailsSync();
   const stale = isCacheStale();
 
-  // If we have cache and don't require forceRefresh, feed cache immediately
   if (cached && !forceRefresh) {
     if (onData) onData(cached, false);
-    // If cache is fresh, skip background revalidation
     if (!stale) return cached;
   }
 

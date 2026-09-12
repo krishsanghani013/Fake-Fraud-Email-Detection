@@ -1,38 +1,4 @@
-/**
- * Phase 9 — Forensic AI-Generated & Threat Content Detection Engine
- * 
- * Dual-Matrix Forensic Architecture:
- * 
- * MATRIX DIMENSION 1: AUTHORSHIP MATRIX (AI-Generated vs Human-Authored)
- * - Stylometric & Statistical Metrics (Deterministic):
- *   - Burstiness ($CV = \sigma / \mu$): Measures sentence length rhythm variance. Low variance indicates LLM generation.
- *   - Perplexity & Predictability Proxy: Evaluates token frequency distributions and n-gram smoothing.
- *   - Lexical Diversity: Type-Token Ratio (TTR) & vocabulary variety.
- *   - Structural Symmetry: Paragraph and clause length uniformity.
- *   - Forensic LLM Hallmarks: 50+ classic synthetic transition markers, prompt residues, and robotic formulaic scaffolding.
- * - Semantic Computational Linguistics (Google Gemini 3.6 Flash):
- *   - Evaluates syntactic smoothing, discourse coherence, emotional cadence, and pragmatic intent.
- * 
- * MATRIX DIMENSION 2: DECEPTION & THREAT MATRIX (Fake / Harmful vs Legitimate / Safe)
- * - Threat & Deception Heuristics (Deterministic):
- *   - Credential Harvesting: Solicits logins, password resets, verification portals.
- *   - Urgency & Extortion Pretext: Coercive account suspension warnings, countdowns, artificial deadlines.
- *   - Financial Fraud & BEC: Unauthorized wire requests, banking routing changes, gift cards, invoice diversions.
- *   - Brand & Authority Impersonation: Mimicking PayPal, Microsoft, Google Workspace, IT Administration, Executive Office.
- *   - Benign Workplace Indicators: Natural conversational cues, meeting links, project updates that reduce false alarms.
- * - Deep Semantic Intent Classification (Google Gemini 3.6 Flash):
- *   - Analyzes whether context is deceptive (Fake), harmful (Phishing / Scam), or authentic (Legitimate).
- * 
- * SYNTHESIS: UNIFIED QUAD-MATRIX FORENSIC VERDICT
- * - AI_GENERATED_HARMFUL: Automated AI Spear-Phishing / Cyber Attack.
- * - AI_GENERATED_LEGITIMATE: AI-Assisted Legitimate Communication (Marketing / Newsletter / Internal Draft).
- * - HUMAN_AUTHORED_HARMFUL: Manual Social Engineering / BEC / Targeted Fraud.
- * - HUMAN_AUTHORED_LEGITIMATE: Authentic Legitimate Human Communication.
- * - SUSPICIOUS_ANOMALY: Mixed signals requiring human security review.
- * 
- * RESILIENT OFFLINE FALLBACK:
- * - Fully functional offline with 0ms network latency when API is offline or times out.
- */
+// Forensic AI content detection engine
 
 export const AI_DETECTION_VERDICTS = Object.freeze({
   DEFINITELY_AI: 'DEFINITELY_AI_GENERATED',
@@ -66,9 +32,7 @@ export const QUAD_MATRIX_VERDICTS = Object.freeze({
   SUSPICIOUS_ANOMALY: 'SUSPICIOUS_ANOMALY'
 });
 
-/**
- * Curated list of classic LLM signature markers, synthetic transitions, and prompt leak residues.
- */
+// LLM signature markers
 export const AI_HALLMARKS = [
   // 1. Synthetic Openers & Hedging
   { pattern: /\b(i hope this email finds you well)\b/i, category: 'Formulaic Opener', weight: 15, description: 'Classic generic LLM greeting cliché' },
@@ -93,9 +57,7 @@ export const AI_HALLMARKS = [
   { pattern: /\b(?:subject line:|here is a draft(?: of)?|here is an email)\b/i, category: 'Prompt Generation Leak', weight: 40, description: 'Chatbot output prefix artifact' }
 ];
 
-/**
- * Curated threat and deception pattern rules for deterministic threat scoring.
- */
+// Threat patterns
 export const THREAT_PATTERNS = [
   // 1. Credential Harvesting & Account Takeover
   {
@@ -153,20 +115,13 @@ export const THREAT_PATTERNS = [
   }
 ];
 
-/**
- * Benign workplace indicators that reduce threat false alarms.
- */
+// Benign workplace patterns
 export const BENIGN_PATTERNS = [
   /\b(?:attached is the (?:presentation|deck|minutes|agenda)|meeting (?:notes|link|minutes)|standup|catch up tomorrow|hop on a (?:call|google meet|zoom)|feel free to edit the doc|pull request|github|jira ticket|looking forward to (?:seeing|working with) you)\b/i,
   /\b(?:sprint (?:planning|review|retrospective)|code review|deployment pipeline|quarterly roadmap)\b/i
 ];
 
-/**
- * Strips HTML tags and decodes common entities to produce clean plaintext.
- * 
- * @param {string} input
- * @returns {string} Clean plaintext
- */
+// Strip HTML tags
 export function stripHtml(input) {
   if (!input || typeof input !== 'string') return '';
   return input
@@ -183,12 +138,7 @@ export function stripHtml(input) {
     .trim();
 }
 
-/**
- * Segments raw text into distinct sentences with robust punctuation and boundary handling.
- * 
- * @param {string} text Raw email body text
- * @returns {string[]} Array of normalized sentence strings
- */
+// Segment text into sentences
 export function segmentSentences(text) {
   if (!text || typeof text !== 'string') return [];
 
@@ -219,12 +169,7 @@ export function segmentSentences(text) {
   return sentences;
 }
 
-/**
- * Extracts normalized tokens (words) from text.
- * 
- * @param {string} text 
- * @returns {string[]}
- */
+// Tokenize text into words
 export function tokenizeText(text) {
   if (!text || typeof text !== 'string') return [];
   return text
@@ -234,16 +179,7 @@ export function tokenizeText(text) {
     .filter((w) => w.length > 0);
 }
 
-/**
- * Computes Burstiness ($CV = \sigma / \mu$):
- * Measures the variation of sentence lengths in the text.
- * 
- * Human writing has HIGH burstiness (alternating short punchy sentences and complex clauses).
- * AI models write with unnaturally UNIFORM, balanced sentence lengths (low burstiness).
- * 
- * @param {string[]} sentences 
- * @returns {{ burstinessScore: number, meanLength: number, stdDev: number, cv: number, interpretation: string }}
- */
+// Compute sentence length burstiness
 export function computeBurstiness(sentences) {
   if (!Array.isArray(sentences) || sentences.length <= 1) {
     return {
@@ -302,13 +238,7 @@ export function computeBurstiness(sentences) {
   };
 }
 
-/**
- * Computes Perplexity / Predictability Proxy:
- * Measures token smoothing, common transitional word density, and vocabulary predictability.
- * 
- * @param {string[]} tokens 
- * @returns {{ predictabilityScore: number, commonTransitionDensity: number, rareWordRatio: number, rating: string }}
- */
+// Compute perplexity proxy
 export function computePerplexityProxy(tokens) {
   if (!Array.isArray(tokens) || tokens.length === 0) {
     return {
@@ -403,12 +333,7 @@ export function computePerplexityProxy(tokens) {
   };
 }
 
-/**
- * Computes Lexical Diversity (Type-Token Ratio / TTR):
- * 
- * @param {string[]} tokens 
- * @returns {{ ttr: number, uniqueWords: number, totalTokens: number, rating: string }}
- */
+// Compute lexical diversity
 export function computeLexicalDiversity(tokens) {
   if (!Array.isArray(tokens) || tokens.length === 0) {
     return { ttr: 0.5, uniqueWords: 0, totalTokens: 0, rating: 'UNKNOWN' };
@@ -430,12 +355,7 @@ export function computeLexicalDiversity(tokens) {
   };
 }
 
-/**
- * Scans text for classic synthetic LLM hallmarks, clichés, and prompt leaks.
- * 
- * @param {string} text 
- * @returns {{ hallmarks: Array<{ category: string, matched: string, description: string, weight: number }>, totalHallmarkWeight: number }}
- */
+// Detect synthetic AI hallmarks
 export function detectAiHallmarks(text) {
   if (!text || typeof text !== 'string') {
     return { hallmarks: [], totalHallmarkWeight: 0 };
@@ -463,13 +383,7 @@ export function detectAiHallmarks(text) {
   };
 }
 
-/**
- * Analyzes deterministic threat, deception, and harm cues.
- * 
- * @param {string} text 
- * @param {string} [subject] 
- * @returns {object}
- */
+// Analyze deterministic threat cues
 export function analyzeThreatDeterministic(text, subject = '') {
   const fullText = subject ? `${subject}\n\n${text}` : text;
   const matches = [];
@@ -531,13 +445,7 @@ export function analyzeThreatDeterministic(text, subject = '') {
   };
 }
 
-/**
- * Resolves the unified Quad-Matrix verdict from authorship and threat metrics.
- * 
- * @param {number} aiProbability 
- * @param {number} threatScore 
- * @returns {string} One of QUAD_MATRIX_VERDICTS
- */
+// Resolve quad-matrix verdict
 export function resolveQuadMatrixVerdict(aiProbability, threatScore, isHarmful = null) {
   const isHighAi = aiProbability >= 50;
   const isHarmfulThreat = isHarmful !== null ? Boolean(isHarmful) : threatScore >= 50;
@@ -558,14 +466,7 @@ export function resolveQuadMatrixVerdict(aiProbability, threatScore, isHarmful =
   return QUAD_MATRIX_VERDICTS.SUSPICIOUS_ANOMALY;
 }
 
-/**
- * Computes deterministic stylometric and threat detection scores from text.
- * Highly accurate baseline that operates with 0ms network latency.
- * 
- * @param {string} text Raw email body
- * @param {string} [subject] Email subject line
- * @returns {object} Deterministic assessment
- */
+// Analyze stylometrics deterministically
 export function analyzeStylometricsDeterministic(text, subject = '') {
   const cleanBody = text && typeof text === 'string' ? text.trim() : '';
   const fullText = subject ? `${subject}\n\n${cleanBody}` : cleanBody;
@@ -691,9 +592,7 @@ export function analyzeStylometricsDeterministic(text, subject = '') {
   };
 }
 
-/**
- * Builds the computational linguistics and threat prompt for Google Gemini 3.6 Flash.
- */
+// Build Gemini detection prompt
 export function buildAiDetectionPrompt(text, subject = '', deterministicMetrics = null) {
   const systemInstruction = `You are an elite Senior Dual-Domain Forensic Email Analyst and Computational Linguist.
 Your mission is to rigorously analyze an incoming email along TWO independent, orthogonal dimensions:
@@ -773,20 +672,7 @@ Produce your forensic assessment strictly as a JSON object matching this schema:
   return { systemInstruction, promptText };
 }
 
-/**
- * Full Forensic AI & Threat Content Detection Orchestrator.
- * Combines Google Gemini 3.6 Flash with Deterministic Stylometric & Threat analysis,
- * with automatic fallback if the live API times out or is offline.
- * 
- * @param {string} text Raw email body text
- * @param {object} [options]
- * @param {string} [options.subject] Email subject line
- * @param {string} [options.apiKey] Gemini API Key
- * @param {string} [options.model] Gemini model identifier (default: "gemini-3.6-flash")
- * @param {number} [options.timeoutMs] Timeout in ms (default: 30000)
- * @param {boolean} [options.forceOffline] Forces offline deterministic analysis
- * @returns {Promise<object>} Complete forensic dual-matrix report
- */
+// Detect AI-generated content
 export async function detectAiGeneratedContent(text, options = {}) {
   const generatedAt = new Date().toISOString();
   const subject = options.subject || '';

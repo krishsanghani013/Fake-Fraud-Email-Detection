@@ -1,19 +1,4 @@
-/**
- * Phase 7 — Threat Intelligence Service
- * 
- * Master enrichment orchestrator for email forensic artifacts.
- * 
- * FORENSIC PRINCIPLES:
- * 1. Threat Intelligence is external enrichment, NOT infallible ground truth.
- * 2. Unknown/Unavailable ≠ Malicious: provider failures, rate limits, or missing keys
- *    never elevate fraud risk scores.
- * 3. Privacy Preservation: Private, loopback, link-local, and unspecified IPs are
- *    strictly filtered and never leaked to third-party providers.
- * 4. Minimal Artifact Exposure: Only IPs, normalized URLs, and domains are sent.
- *    Full headers, body content, and attachments are never shared.
- * 5. Deterministic Normalization: Multi-provider responses are mapped into a stable,
- *    reproducible intelligence model.
- */
+// Threat intelligence service
 
 import { classifyIp } from './emailTransmission.js';
 import { THREAT_VERDICTS, BaseThreatIntelProvider } from './threat-intel/provider.js';
@@ -23,13 +8,7 @@ import { AbuseIpdbAdapter } from './threat-intel/abuseIpdbAdapter.js';
 
 export { THREAT_VERDICTS, BaseThreatIntelProvider };
 
-/**
- * Instantiates a threat intelligence provider based on name or environment variable.
- * 
- * @param {string} providerName 
- * @param {object} config 
- * @returns {BaseThreatIntelProvider}
- */
+// Create threat intel provider
 export function createThreatIntelProvider(providerName, config = {}) {
   const name = (providerName || process.env.THREAT_INTEL_PROVIDER || 'mock').toLowerCase();
 
@@ -44,33 +23,14 @@ export function createThreatIntelProvider(providerName, config = {}) {
   }
 }
 
-/**
- * Evaluates whether an IP address is safe to query externally.
- * Excludes private RFC 1918, loopback, link-local, and unspecified addresses.
- * 
- * @param {string} ipAddress 
- * @param {number} version 
- * @returns {{ isPublic: boolean, ipType: string }}
- */
+// Evaluate IP routability
 export function evaluateIpRoutability(ipAddress, version = 4) {
   const ipType = classifyIp(ipAddress, version);
   const isPublic = ipType === 'public';
   return { isPublic, ipType };
 }
 
-/**
- * Enriches email artifacts with threat intelligence observations.
- * 
- * @param {object} artifacts Extracted artifacts from Phase 2 / Phase 5
- * @param {Array} artifacts.ips Array of IP objects or strings
- * @param {Array} artifacts.urls Array of URL objects or strings
- * @param {Array} artifacts.domains Array of Domain objects or strings
- * @param {object} options
- * @param {BaseThreatIntelProvider|Array<BaseThreatIntelProvider>} [options.provider]
- * @param {string} [options.providerName]
- * @param {object} [options.providerConfig]
- * @returns {Promise<object>} Canonical data.threatIntel structure
- */
+// Enrich artifacts with threat intelligence
 export async function enrichThreatIntel(artifacts = {}, options = {}) {
   const lookedUpAt = new Date().toISOString();
 
@@ -103,9 +63,7 @@ export async function enrichThreatIntel(artifacts = {}, options = {}) {
   const seenUrls = new Set();
   const seenDomains = new Set();
 
-  // ---------------------------------------------------------------------------
-  // 1. IP Reputation Enrichment
-  // ---------------------------------------------------------------------------
+  // IP reputation
   const rawIps = Array.isArray(artifacts.ips) ? artifacts.ips : [];
   for (const item of rawIps) {
     const address = typeof item === 'string' ? item : item?.address;
@@ -217,9 +175,7 @@ export async function enrichThreatIntel(artifacts = {}, options = {}) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 2. URL Reputation Enrichment
-  // ---------------------------------------------------------------------------
+  // URL reputation
   const rawUrls = Array.isArray(artifacts.urls) ? artifacts.urls : [];
   for (const item of rawUrls) {
     const targetUrl = typeof item === 'string' ? item : item?.normalized || item?.original;
@@ -304,9 +260,7 @@ export async function enrichThreatIntel(artifacts = {}, options = {}) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 3. Domain Reputation Enrichment
-  // ---------------------------------------------------------------------------
+  // Domain reputation
   const rawDomains = Array.isArray(artifacts.domains) ? artifacts.domains : [];
   for (const item of rawDomains) {
     const targetDomain = typeof item === 'string' ? item : item?.normalized || item?.original;
@@ -389,9 +343,7 @@ export async function enrichThreatIntel(artifacts = {}, options = {}) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 4. Overall Service Status
-  // ---------------------------------------------------------------------------
+  // Overall service status
   const totalChecked = (ipResults.length - skippedCount) + urlResults.length + domainResults.length;
   let overallStatus = 'available';
 
