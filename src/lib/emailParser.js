@@ -9,6 +9,7 @@ import { extractArtifacts } from './emailArtifacts.js';
 import { extractAuthenticationEvidence } from './emailAuth.js';
 import { analyzeSenderIdentity } from './senderIdentity.js';
 import { analyzeEmailTransmission } from './emailTransmission.js';
+import { analyzeRisk } from './riskEngine.js';
 
 
 /**
@@ -452,6 +453,9 @@ export function parseRawEmail(rawInput) {
 
     // Phase 5: Header Transmission & Hop Analysis
     normalizedEmail.transmission = analyzeEmailTransmission(normalizedEmail);
+
+    // Phase 6: Deterministic Forensic Risk Engine
+    normalizedEmail.risk = analyzeRisk(normalizedEmail);
 
     return {
       success: true,

@@ -71,6 +71,15 @@ export function EmailForensicPreview({ emailData }) {
       latencies: [],
       findings: [],
       summary: { hopCount: 0, ipCount: 0, timestampCount: 0, totalLatencySeconds: null }
+    },
+    risk = {
+      version: '1.0',
+      totalScore: 0,
+      rawScore: 0,
+      level: 'LOW',
+      contributions: [],
+      summary: { totalContributions: 0, categories: { authentication: 0, sender_identity: 0, transmission: 0 } },
+      methodology: { type: 'deterministic', version: '1.0' }
     }
   } = emailData;
 
@@ -102,15 +111,27 @@ export function EmailForensicPreview({ emailData }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-textSecondary">
+            {/* Deterministic Risk Badge */}
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider text-[11px] border ${
+                risk.level === 'CRITICAL'
+                  ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-glowRed'
+                  : risk.level === 'HIGH'
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                  : risk.level === 'MEDIUM'
+                  ? 'bg-warningYellow/20 text-warningYellow border-warningYellow/40'
+                  : 'bg-successGreen/20 text-successGreen border-successGreen/40'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Risk: {risk.totalScore}/100 ({risk.level})
+            </span>
+            <span>•</span>
             <span>{headers.all.length} Headers</span>
             <span>•</span>
             <span>{mime.parts.length} MIME Parts</span>
             <span>•</span>
             <span>{artifacts.urls.length} URLs</span>
-            <span>•</span>
-            <span>{artifacts.ips.length} IPs</span>
-            <span>•</span>
-            <span>{authentication.dkim.signatures.length} DKIM Signatures</span>
             <span>•</span>
             <span>{transmission.hops?.length || 0} Hops</span>
             <span>•</span>
@@ -149,6 +170,17 @@ export function EmailForensicPreview({ emailData }) {
           }`}
         >
           <Mail className="w-4 h-4" /> Metadata
+        </button>
+
+        <button
+          onClick={() => setActiveTab('risk')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'risk'
+              ? 'bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/40 shadow-glowBlue'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4 text-warningYellow" /> Risk Analysis ({risk.totalScore}/100 • {risk.level})
         </button>
 
         <button
@@ -318,6 +350,153 @@ export function EmailForensicPreview({ emailData }) {
               )}
             </div>
           </Card>
+        )}
+
+        {/* TAB: RISK ANALYSIS (PHASE 6) */}
+        {activeTab === 'risk' && (
+          <div className="space-y-6">
+            {/* Forensic Principle Notice */}
+            <div className="p-4 rounded-2xl bg-primaryBlue/10 border border-primaryBlue/30 text-xs flex items-start gap-3">
+              <Info className="w-4 h-4 text-primaryBlue flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <div className="font-semibold text-textPrimary font-mono">
+                  Deterministic Forensic Risk Analysis (Evidence-First Scoring)
+                </div>
+                <div className="text-textSecondary leading-relaxed font-sans">
+                  Risk scoring is calculated deterministically from explicit observed evidence across Authentication, Sender Identity, and Header Transmission.
+                  Points are awarded strictly when observable failures or inconsistencies exist; missing data is never penalized as a failure.
+                  This assessment represents observed forensic risk and does NOT establish independent proof of malicious intent or confirmed phishing.
+                </div>
+              </div>
+            </div>
+
+            {/* Score Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-mono">
+              <div className="p-5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-2 md:col-span-1 flex flex-col justify-between">
+                <span className="text-textSecondary text-[11px] uppercase tracking-wider">Total Risk Score</span>
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className={`text-4xl font-extrabold ${
+                      risk.level === 'CRITICAL'
+                        ? 'text-red-400'
+                        : risk.level === 'HIGH'
+                        ? 'text-amber-400'
+                        : risk.level === 'MEDIUM'
+                        ? 'text-warningYellow'
+                        : 'text-successGreen'
+                    }`}
+                  >
+                    {risk.totalScore}
+                  </span>
+                  <span className="text-textSecondary text-xs">/ 100</span>
+                </div>
+                <div>
+                  <span
+                    className={`inline-block px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider text-[10px] border ${
+                      risk.level === 'CRITICAL'
+                        ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                        : risk.level === 'HIGH'
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                        : risk.level === 'MEDIUM'
+                        ? 'bg-warningYellow/20 text-warningYellow border-warningYellow/40'
+                        : 'bg-successGreen/20 text-successGreen border-successGreen/40'
+                    }`}
+                  >
+                    {risk.level} Risk
+                  </span>
+                </div>
+              </div>
+
+              {/* Category Breakdown */}
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Authentication Failures:</span>
+                <div className="text-2xl font-bold text-textPrimary">
+                  +{risk.summary?.categories?.authentication || 0}
+                </div>
+                <span className="text-[10px] text-textSecondary">DMARC, SPF, DKIM reported failures</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Sender Identity Mismatches:</span>
+                <div className="text-2xl font-bold text-cyanAccent">
+                  +{risk.summary?.categories?.sender_identity || 0}
+                </div>
+                <span className="text-[10px] text-textSecondary">From vs Reply-To/Return-Path/Auth</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Transmission Anomalies:</span>
+                <div className="text-2xl font-bold text-purpleAccent">
+                  +{risk.summary?.categories?.transmission || 0}
+                </div>
+                <span className="text-[10px] text-textSecondary">Negative latency, host handoff</span>
+              </div>
+            </div>
+
+            {/* Itemized Risk Contributions */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-warningYellow" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    Evidence-Backed Risk Contributions ({risk.contributions?.length || 0})
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-textSecondary">
+                  Methodology: Deterministic v{risk.version || '1.0'}
+                </span>
+              </div>
+
+              {risk.contributions?.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-successGreen/10 border border-successGreen/20 text-xs font-mono text-successGreen flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>No risk contributions detected. Evaluated email evidence shows no authentication failures, identity mismatches, or transmission anomalies.</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {risk.contributions.map((c, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-2 hover:border-white/20 transition-all"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 text-[11px] font-bold">
+                            +{c.points} pts
+                          </span>
+                          <span className="font-bold text-textPrimary text-xs">{c.id}</span>
+                          <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-white/5 text-textSecondary">
+                            {c.category.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-textSecondary leading-relaxed text-[11px]">{c.reason}</p>
+
+                      {c.evidence && (
+                        <div className="p-2.5 rounded-xl bg-surfacePrimary/80 border border-borderSubtle text-[10px] space-y-1 break-all">
+                          {c.evidence.source && <div><strong>Source:</strong> {c.evidence.source}</div>}
+                          {c.evidence.result && <div><strong>Reported Result:</strong> {c.evidence.result}</div>}
+                          {c.evidence.domain && <div><strong>Domain:</strong> {c.evidence.domain}</div>}
+                          {c.evidence.policy && <div><strong>Policy:</strong> {c.evidence.policy}</div>}
+                          {c.evidence.clientIp && <div><strong>Client IP:</strong> {c.evidence.clientIp}</div>}
+                          {c.evidence.comparison && <div><strong>Comparison:</strong> {c.evidence.comparison}</div>}
+                          {c.evidence.sourceA?.domain && (
+                            <div><strong>Source A ({c.evidence.sourceA.type}):</strong> {c.evidence.sourceA.domain}</div>
+                          )}
+                          {c.evidence.sourceB?.domain && (
+                            <div><strong>Source B ({c.evidence.sourceB.type}):</strong> {c.evidence.sourceB.domain}</div>
+                          )}
+                          {c.evidence.type && <div><strong>Anomaly Type:</strong> {c.evidence.type}</div>}
+                          {c.evidence.raw && <div><strong>Raw Header:</strong> {c.evidence.raw}</div>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
         )}
 
         {/* TAB 2: SENDER IDENTITY & CONSISTENCY (PHASE 4) */}

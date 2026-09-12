@@ -33,10 +33,16 @@ import {
   analyzeHopContinuity,
   analyzeEmailTransmission
 } from '../src/lib/emailTransmission.js';
+import {
+  analyzeRisk,
+  calculateRisk,
+  determineRiskLevel,
+  DETERMINISTIC_RISK_POLICY
+} from '../src/lib/riskEngine.js';
 import { POST } from '../src/app/api/parse-eml/route.js';
 
 console.log('====================================================');
-console.log('RUNNING PHASE 1, 2, 3, 4 & 5 FORENSIC TEST SUITE');
+console.log('RUNNING PHASE 1, 2, 3, 4, 5 & 6 FORENSIC TEST SUITE');
 console.log('====================================================\n');
 
 let passedTests = 0;
@@ -1715,6 +1721,441 @@ async function runAll() {
     assert.ok(finding);
     assert.equal(finding.evidence.priorByHost, 'relay.trusted.com');
     assert.equal(finding.evidence.nextFromHost, 'completely-unrelated.org');
+  });
+
+  // ===========================================================================
+  // PHASE 6: DETERMINISTIC RISK ENGINE TESTS
+  // ===========================================================================
+  console.log('\n--- PHASE 6: DETERMINISTIC RISK ENGINE TESTS ---');
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 1: Clean email produces score 0 and LOW risk
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 1: Clean email produces score 0 and LOW risk', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=example.com; dkim=pass header.d=example.com; dmarc=pass header.from=example.com',
+      'From: user@example.com',
+      'To: dest@example.com',
+      'Subject: Clean Email',
+      '',
+      'Clean message body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.ok(result.data.risk);
+    assert.equal(result.data.risk.totalScore, 0);
+    assert.equal(result.data.risk.level, 'LOW');
+    assert.equal(result.data.risk.contributions.length, 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 2: DMARC pass produces no risk points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 2: DMARC pass produces no risk points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=pass header.from=example.com',
+      'From: user@example.com',
+      'Subject: DMARC Pass',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.risk.contributions.some((c) => c.id.startsWith('DMARC')), false);
+    assert.equal(result.data.risk.totalScore, 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 3: DMARC fail contributes +20 points (Checklist #38)
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 3: DMARC fail contributes +20 points (Checklist #38)', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=fail header.from=example.com policy=reject',
+      'From: user@example.com',
+      'Subject: DMARC Fail',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const dmarcContr = result.data.risk.contributions.find((c) => c.id === 'DMARC_FAIL');
+    assert.ok(dmarcContr);
+    assert.equal(dmarcContr.points, 20);
+    assert.equal(dmarcContr.category, 'authentication');
+    assert.equal(dmarcContr.evidence.result, 'fail');
+    assert.equal(dmarcContr.evidence.domain, 'example.com');
+    assert.equal(result.data.risk.totalScore, 20);
+    assert.equal(result.data.risk.level, 'MEDIUM');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 4: DMARC none produces no risk points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 4: DMARC none produces no risk points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=none header.from=example.com',
+      'From: user@example.com',
+      'Subject: DMARC None',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.risk.contributions.some((c) => c.id.startsWith('DMARC')), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 5: DMARC temperror contributes documented warning points (+5)
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 5: DMARC temperror contributes documented warning points (+5)', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=temperror header.from=example.com',
+      'From: user@example.com',
+      'Subject: DMARC Temperror',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'DMARC_TEMPERROR');
+    assert.ok(contr);
+    assert.equal(contr.points, 5);
+    assert.equal(contr.category, 'authentication');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 6: DMARC permerror contributes documented error points (+10)
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 6: DMARC permerror contributes documented error points (+10)', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=permerror header.from=example.com',
+      'From: user@example.com',
+      'Subject: DMARC Permerror',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'DMARC_PERMERROR');
+    assert.ok(contr);
+    assert.equal(contr.points, 10);
+    assert.equal(contr.category, 'authentication');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 7: SPF pass produces no risk points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 7: SPF pass produces no risk points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=example.com',
+      'From: user@example.com',
+      'Subject: SPF Pass',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.risk.contributions.some((c) => c.id.startsWith('SPF')), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 8: SPF fail contributes +15 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 8: SPF fail contributes +15 points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=example.com',
+      'From: user@example.com',
+      'Subject: SPF Fail',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'SPF_FAIL');
+    assert.ok(contr);
+    assert.equal(contr.points, 15);
+    assert.equal(contr.category, 'authentication');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 9: SPF softfail contributes +10 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 9: SPF softfail contributes +10 points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=softfail smtp.mailfrom=example.com',
+      'From: user@example.com',
+      'Subject: SPF Softfail',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'SPF_SOFTFAIL');
+    assert.ok(contr);
+    assert.equal(contr.points, 10);
+    assert.equal(contr.category, 'authentication');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 10: DKIM pass produces no risk points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 10: DKIM pass produces no risk points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dkim=pass header.d=example.com',
+      'From: user@example.com',
+      'Subject: DKIM Pass',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.risk.contributions.some((c) => c.id.startsWith('DKIM')), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 11: DKIM fail contributes +15 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 11: DKIM fail contributes +15 points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dkim=fail header.d=example.com',
+      'From: user@example.com',
+      'Subject: DKIM Fail',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'DKIM_FAIL');
+    assert.ok(contr);
+    assert.equal(contr.points, 15);
+    assert.equal(contr.category, 'authentication');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 12: From vs Reply-To mismatch contributes +15 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 12: From vs Reply-To mismatch contributes +15 points', () => {
+    const raw = [
+      'From: user@example.com',
+      'Reply-To: support@phishing-target.net',
+      'Subject: Reply-To Mismatch',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'FROM_REPLY_TO_DOMAIN_MISMATCH');
+    assert.ok(contr);
+    assert.equal(contr.points, 15);
+    assert.equal(contr.category, 'sender_identity');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 13: From vs Return-Path mismatch contributes +10 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 13: From vs Return-Path mismatch contributes +10 points', () => {
+    const raw = [
+      'From: user@example.com',
+      'Return-Path: <bounce@unrelated-sender.org>',
+      'Subject: Return-Path Mismatch',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'FROM_RETURN_PATH_DOMAIN_MISMATCH');
+    assert.ok(contr);
+    assert.equal(contr.points, 10);
+    assert.equal(contr.category, 'sender_identity');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 14: From vs SPF domain mismatch contributes +10 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 14: From vs SPF domain mismatch contributes +10 points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=relay-domain.org',
+      'From: user@example.com',
+      'Subject: SPF Domain Mismatch',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'FROM_SPF_DOMAIN_MISMATCH');
+    assert.ok(contr);
+    assert.equal(contr.points, 10);
+    assert.equal(contr.category, 'sender_identity');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 15: From vs DKIM domain mismatch contributes +10 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 15: From vs DKIM domain mismatch contributes +10 points', () => {
+    const raw = [
+      'DKIM-Signature: v=1; a=rsa-sha256; d=thirdparty.com; s=s1; b=sig;',
+      'From: user@example.com',
+      'Subject: DKIM Domain Mismatch',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'FROM_DKIM_DOMAIN_MISMATCH');
+    assert.ok(contr);
+    assert.equal(contr.points, 10);
+    assert.equal(contr.category, 'sender_identity');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 16: From vs DMARC header.from mismatch contributes +15 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 16: From vs DMARC header.from mismatch contributes +15 points', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=pass header.from=different.com',
+      'From: user@example.com',
+      'Subject: DMARC header.from Mismatch',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'FROM_DMARC_HEADER_FROM_MISMATCH');
+    assert.ok(contr);
+    assert.equal(contr.points, 15);
+    assert.equal(contr.category, 'sender_identity');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 17: Negative transmission latency contributes +10 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 17: Negative transmission latency contributes +10 points', () => {
+    const raw = [
+      'Received: by hop2.net; Sat, 12 Sep 2026 10:15:10 +0000',
+      'Received: by hop1.net; Sat, 12 Sep 2026 10:15:30 +0000',
+      'From: user@example.com',
+      'Subject: Transmission Anomaly',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'NEGATIVE_TRANSMISSION_LATENCY');
+    assert.ok(contr);
+    assert.equal(contr.points, 10);
+    assert.equal(contr.category, 'transmission');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 18: Transmission hop host mismatch contributes +10 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 18: Transmission hop host mismatch contributes +10 points', () => {
+    const raw = [
+      'Received: from relay-b.net by dest.com; Sat, 12 Sep 2026 10:15:30 +0000',
+      'Received: from origin.com by relay-a.net; Sat, 12 Sep 2026 10:15:20 +0000',
+      'From: user@example.com',
+      'Subject: Hop Host Discrepancy',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contr = result.data.risk.contributions.find((c) => c.id === 'RECEIVED_HOP_HOST_MISMATCH');
+    assert.ok(contr);
+    assert.equal(contr.points, 10);
+    assert.equal(contr.category, 'transmission');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 19: Duplicate identical evidence does not cause double-counting
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 19: Duplicate identical evidence does not cause double-counting', () => {
+    const raw = [
+      'Authentication-Results: mx1.example.com; dmarc=fail header.from=evil.com policy=reject',
+      'Authentication-Results: mx2.example.com; dmarc=fail header.from=evil.com policy=reject',
+      'From: user@evil.com',
+      'Subject: Duplicate Auth Results Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const dmarcFailures = result.data.risk.contributions.filter((c) => c.id === 'DMARC_FAIL');
+    assert.equal(dmarcFailures.length, 1);
+    assert.equal(result.data.risk.totalScore, 20);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 20: Total score equals sum of contributions and assigns HIGH level
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 20: Total score equals sum of contributions and assigns HIGH level', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=fail header.from=target.com; spf=fail smtp.mailfrom=target.com',
+      'From: user@target.com',
+      'Reply-To: phisher@spoof.net',
+      'Subject: Multi-Finding High Risk Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    // DMARC fail (20) + SPF fail (15) + From/Reply-To mismatch (15) = 50
+    assert.equal(result.data.risk.totalScore, 50);
+    assert.equal(result.data.risk.level, 'HIGH');
+    assert.equal(result.data.risk.summary.categories.authentication, 35);
+    assert.equal(result.data.risk.summary.categories.sender_identity, 15);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 21: Deterministic risk level thresholds (LOW, MEDIUM, HIGH, CRITICAL)
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 21: Deterministic risk level thresholds (LOW, MEDIUM, HIGH, CRITICAL)', () => {
+    assert.equal(determineRiskLevel(0), 'LOW');
+    assert.equal(determineRiskLevel(19), 'LOW');
+    assert.equal(determineRiskLevel(20), 'MEDIUM');
+    assert.equal(determineRiskLevel(49), 'MEDIUM');
+    assert.equal(determineRiskLevel(50), 'HIGH');
+    assert.equal(determineRiskLevel(79), 'HIGH');
+    assert.equal(determineRiskLevel(80), 'CRITICAL');
+    assert.equal(determineRiskLevel(100), 'CRITICAL');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 22: Missing authentication and identity data handled without false points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 22: Missing authentication and identity data handled without false points', () => {
+    const raw = [
+      'To: dest@example.com',
+      'Subject: Bare Minimal Email',
+      '',
+      'Minimal message without From, auth, or Received headers'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.risk.totalScore, 0);
+    assert.equal(result.data.risk.level, 'LOW');
+    assert.equal(result.data.risk.contributions.length, 0);
   });
 
   // ---------------------------------------------------------------------------

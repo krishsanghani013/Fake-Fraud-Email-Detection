@@ -38,12 +38,26 @@ A standard-compliant, zero-retention RFC 5322 email ingestion, validation, and f
                               ▼            (From vs Reply-To,                Mismatch)
                              ARC            Return-Path, SPF,
                                             DKIM, DMARC)
-                            │
-                            ▼
-         CANONICAL OBJECT WITH ALL FORENSIC LAYERS
-                            │
-                            ▼
-          UI INSPECTION VIEW & POST /api/parse-eml
+                             │
+                             ▼
+          CANONICAL OBJECT WITH ALL FORENSIC LAYERS
+                             │
+                             ▼
+               ┌───────────────────────────┐
+               │ DETERMINISTIC RISK ENGINE │
+               │      (riskEngine.js)      │
+               └─────────────┬─────────────┘
+                             │
+            ┌────────────────┼────────────────┐
+            ▼                ▼                ▼
+     CONTRIBUTIONS      TOTAL SCORE       RISK LEVEL
+   (Evidence-Backed)      (0-100)      (LOW/MED/HIGH/CRIT)
+                             │
+                             ▼
+          CANONICAL DATA WITH RISK FORENSICS (data.risk)
+                             │
+                             ▼
+           UI INSPECTION VIEW & POST /api/parse-eml
 ```
 
 ---
@@ -242,9 +256,97 @@ Located under `data.artifacts`:
 }
 ```
 
+### Canonical Risk Object (Phase 6)
+Located under `data.risk`:
+```json
+{
+  "version": "1.0",
+  "totalScore": 50,
+  "rawScore": 50,
+  "level": "HIGH",
+  "contributions": [
+    {
+      "id": "DMARC_FAIL",
+      "category": "authentication",
+      "points": 20,
+      "reason": "DMARC authentication reported an explicit failure for domain \"example.com\".",
+      "evidence": {
+        "source": "Authentication-Results",
+        "result": "fail",
+        "domain": "example.com",
+        "policy": "reject"
+      }
+    },
+    {
+      "id": "FROM_REPLY_TO_DOMAIN_MISMATCH",
+      "category": "sender_identity",
+      "points": 15,
+      "reason": "Sender From domain (example.com) does not match Reply-To destination domain (spoof.net).",
+      "evidence": { ... }
+    }
+  ],
+  "summary": {
+    "totalContributions": 2,
+    "categories": {
+      "authentication": 20,
+      "sender_identity": 15,
+      "transmission": 0
+    }
+  },
+  "methodology": {
+    "type": "deterministic",
+    "version": "1.0",
+    "thresholds": {
+      "low": "0-19",
+      "medium": "20-49",
+      "high": "50-79",
+      "critical": "80-100"
+    }
+  }
+}
+```
+
 ---
 
 ## 3. Extraction & Normalization Specifications
+
+### Deterministic Forensic Risk Engine (Phase 6)
+- **Forensic Principle**:
+  - The Risk Engine is deterministic, explainable, and evidence-backed. It evaluates observed findings from Authentication (Phase 3), Sender Identity Consistency (Phase 4), and Transmission Hops (Phase 5).
+  - It does **not** independently establish malicious intent or claim an email is "confirmed phishing". It quantifies observed forensic risk based purely on explicit evidence.
+  - Missing headers or absent records are **never** penalized as failures (Missing ≠ Malicious).
+- **Checklist Item #38 Implementation (DMARC Scoring)**:
+  - `dmarc=fail`: **+20 points** (`DMARC_FAIL`) — explicit DMARC authentication rejection reported by receiving server.
+  - `dmarc=permerror`: **+10 points** (`DMARC_PERMERROR`) — permanent DNS/syntax configuration error.
+  - `dmarc=temperror`: **+5 points** (`DMARC_TEMPERROR`) — transient DNS/lookup evaluation error.
+  - `dmarc=pass` or `dmarc=none`: **0 points**.
+- **SPF Scoring**:
+  - `spf=fail`: **+15 points** (`SPF_FAIL`)
+  - `spf=softfail`: **+10 points** (`SPF_SOFTFAIL`)
+  - `spf=permerror` / `spf=temperror`: **+5 points**
+  - `spf=pass`, `spf=neutral`, `spf=none`, or missing: **0 points**.
+- **DKIM Scoring**:
+  - `dkim=fail`: **+15 points** (`DKIM_FAIL`)
+  - `dkim=permerror` / `dkim=temperror`: **+5 points**
+  - `dkim=pass` or missing: **0 points**.
+- **Sender Identity Mismatches**:
+  - `FROM_REPLY_TO_DOMAIN_MISMATCH`: **+15 points**
+  - `FROM_RETURN_PATH_DOMAIN_MISMATCH`: **+10 points**
+  - `FROM_SPF_DOMAIN_MISMATCH`: **+10 points**
+  - `FROM_DKIM_DOMAIN_MISMATCH`: **+10 points**
+  - `FROM_DMARC_HEADER_FROM_MISMATCH`: **+15 points**
+- **Transmission Anomalies**:
+  - `NEGATIVE_TRANSMISSION_LATENCY`: **+10 points**
+  - `RECEIVED_HOP_HOST_MISMATCH`: **+10 points**
+  - `RECEIVED_TIMESTAMP_PARSE_ERROR`: **+5 points**
+- **Deduplication Strategy**:
+  - Identical evidence repeated across multiple headers (e.g. duplicate `Authentication-Results` reporting the same failure for the same domain) is deduplicated via deterministic `dedupKey` sets. Points are counted exactly once per distinct finding.
+- **Score Thresholds & Levels**:
+  - `0 – 19`: **LOW** (Normal or fully verified email)
+  - `20 – 49`: **MEDIUM** (Single major failure or isolated handoff discrepancies)
+  - `50 – 79`: **HIGH** (Multiple authentication failures or identity discrepancies)
+  - `80 – 100`: **CRITICAL** (Comprehensive authentication breakdown across multiple layers)
+  - Total score formula: `Math.min(100, Math.max(0, sumOfContributionPoints))`.
 
 ### Header Transmission & Hop Analysis (Phase 5)
 - **Forensic Principle**:
@@ -319,7 +421,8 @@ Located under `data.artifacts`:
       "artifacts": { ... },
       "authentication": { ... },
       "senderIdentity": { ... },
-      "transmission": { ... }
+      "transmission": { ... },
+      "risk": { ... }
     },
     "warnings": []
   }
@@ -334,7 +437,7 @@ Run all test suites with:
 npm test
 ```
 
-### Covered Test Cases (77 Total Assertions):
+### Covered Test Cases (99 Total Assertions):
 #### Phase 1: Core RFC 5322 & MIME (Tests 1–11)
 1. Simple plain-text email.
 2. HTML email.
@@ -419,4 +522,28 @@ npm test
 73. **TEST 18 — Offline verification**: Verifies local IP classification (`private`, `loopback`, `link-local`, `public`).
 74. **TEST 19 — Malformed timestamp error detection**: Emits `RECEIVED_TIMESTAMP_PARSE_ERROR` for unparseable date text.
 75. **TEST 20 — Hop continuity mismatch detection**: Emits `RECEIVED_HOP_HOST_MISMATCH` when prior `by` and next `from` hosts disagree.
+
+#### Phase 6: Deterministic Forensic Risk Engine (Tests 1–22)
+76. **TEST 1 — Clean email produces score 0 and LOW risk**: Zero risk points when all evidence is passing or consistent.
+77. **TEST 2 — DMARC pass produces no risk points**: Passing DMARC does not contribute points.
+78. **TEST 3 — DMARC fail contributes +20 points (Checklist #38)**: Explicit DMARC rejection produces +20 points.
+79. **TEST 4 — DMARC none produces no risk points**: Unconfigured DMARC does not trigger false penalties.
+80. **TEST 5 — DMARC temperror contributes warning points (+5)**: Transient lookup error contributes +5 points.
+81. **TEST 6 — DMARC permerror contributes error points (+10)**: Permanent DNS syntax error contributes +10 points.
+82. **TEST 7 — SPF pass produces no risk points**: Passing SPF does not contribute points.
+83. **TEST 8 — SPF fail contributes +15 points**: Explicit SPF rejection contributes +15 points.
+84. **TEST 9 — SPF softfail contributes +10 points**: SPF softfail contributes +10 points.
+85. **TEST 10 — DKIM pass produces no risk points**: Passing DKIM does not contribute points.
+86. **TEST 11 — DKIM fail contributes +15 points**: Signature verification failure contributes +15 points.
+87. **TEST 12 — From vs Reply-To mismatch contributes +15 points**: Emits `FROM_REPLY_TO_DOMAIN_MISMATCH` contribution.
+88. **TEST 13 — From vs Return-Path mismatch contributes +10 points**: Emits `FROM_RETURN_PATH_DOMAIN_MISMATCH` contribution.
+89. **TEST 14 — From vs SPF domain mismatch contributes +10 points**: Emits `FROM_SPF_DOMAIN_MISMATCH` contribution.
+90. **TEST 15 — From vs DKIM domain mismatch contributes +10 points**: Emits `FROM_DKIM_DOMAIN_MISMATCH` contribution.
+91. **TEST 16 — From vs DMARC header.from mismatch contributes +15 points**: Emits `FROM_DMARC_HEADER_FROM_MISMATCH` contribution.
+92. **TEST 17 — Negative transmission latency contributes +10 points**: Emits `NEGATIVE_TRANSMISSION_LATENCY` contribution.
+93. **TEST 18 — Transmission hop host mismatch contributes +10 points**: Emits `RECEIVED_HOP_HOST_MISMATCH` contribution.
+94. **TEST 19 — Duplicate identical evidence does not cause double-counting**: Repeated identical failures deduplicated via stable keys.
+95. **TEST 20 — Total score equals sum of contributions**: Multi-finding combination yields exact cumulative score and HIGH level.
+96. **TEST 21 — Deterministic risk level thresholds**: Verifies boundaries for LOW (0-19), MEDIUM (20-49), HIGH (50-79), and CRITICAL (80-100).
+97. **TEST 22 — Missing authentication/identity data handled without false points**: Sparse input yields 0 points without false assumptions.
 
