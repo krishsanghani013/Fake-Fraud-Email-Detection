@@ -15,14 +15,19 @@ import {
   Globe,
   Network,
   Send,
-  Link2
+  Link2,
+  ShieldCheck,
+  ShieldAlert,
+  KeyRound,
+  Info,
+  Server
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useToast } from '../ui/Toast';
 
 export function EmailForensicPreview({ emailData }) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'body' | 'mime' | 'attachments' | 'artifacts' | 'headers'
+  const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'auth' | 'artifacts' | 'body' | 'mime' | 'attachments' | 'headers'
   const [copied, setCopied] = useState(false);
   const [headerFilter, setHeaderFilter] = useState('');
 
@@ -40,6 +45,14 @@ export function EmailForensicPreview({ emailData }) {
       ips: [],
       domains: [],
       senderDomains: { from: [], replyTo: [], returnPath: [] }
+    },
+    authentication = {
+      authenticationResults: [],
+      receivedSpf: [],
+      spf: { results: [] },
+      dkim: { signatures: [], results: [] },
+      dmarc: { results: [] },
+      arc: { seals: [], messageSignatures: [], authenticationResults: [] }
     }
   } = emailData;
 
@@ -63,7 +76,7 @@ export function EmailForensicPreview({ emailData }) {
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-borderSubtle">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primaryBlue/10 border border-primaryBlue/30 text-primaryBlue text-xs font-mono font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-successGreen" /> Normalized RFC 5322 & Artifacts Object
+              <CheckCircle2 className="w-3.5 h-3.5 text-successGreen" /> Normalized Forensic Email Object
             </span>
             <span className="text-xs font-mono text-textSecondary">
               Raw Size: {(raw.size / 1024).toFixed(2)} KB ({raw.size} bytes)
@@ -79,7 +92,7 @@ export function EmailForensicPreview({ emailData }) {
             <span>•</span>
             <span>{artifacts.ips.length} IPs</span>
             <span>•</span>
-            <span>{artifacts.domains.length} Domains</span>
+            <span>{authentication.dkim.signatures.length} DKIM Signatures</span>
           </div>
         </div>
 
@@ -115,6 +128,17 @@ export function EmailForensicPreview({ emailData }) {
         </button>
 
         <button
+          onClick={() => setActiveTab('auth')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'auth'
+              ? 'bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/40 shadow-glowBlue'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" /> Authentication Evidence ({authentication.spf.results.length + authentication.dkim.signatures.length + authentication.dmarc.results.length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('artifacts')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'artifacts'
@@ -122,7 +146,7 @@ export function EmailForensicPreview({ emailData }) {
               : 'text-textSecondary hover:text-textPrimary'
           }`}
         >
-          <Globe className="w-4 h-4" /> Extracted Artifacts ({artifacts.urls.length + artifacts.ips.length + artifacts.domains.length})
+          <Globe className="w-4 h-4" /> Artifacts ({artifacts.urls.length + artifacts.ips.length + artifacts.domains.length})
         </button>
 
         <button
@@ -133,7 +157,7 @@ export function EmailForensicPreview({ emailData }) {
               : 'text-textSecondary hover:text-textPrimary'
           }`}
         >
-          <FileText className="w-4 h-4" /> Body (Text & HTML)
+          <FileText className="w-4 h-4" /> Body
         </button>
 
         <button
@@ -144,7 +168,7 @@ export function EmailForensicPreview({ emailData }) {
               : 'text-textSecondary hover:text-textPrimary'
           }`}
         >
-          <Layers className="w-4 h-4" /> MIME Structure ({mime.parts.length})
+          <Layers className="w-4 h-4" /> MIME ({mime.parts.length})
         </button>
 
         <button
@@ -250,7 +274,222 @@ export function EmailForensicPreview({ emailData }) {
           </Card>
         )}
 
-        {/* TAB 2: EXTRACTED ARTIFACTS (PHASE 2) */}
+        {/* TAB 2: AUTHENTICATION EVIDENCE (PHASE 3) */}
+        {activeTab === 'auth' && (
+          <div className="space-y-6">
+            {/* Forensic Principle Notice */}
+            <div className="p-4 rounded-2xl bg-primaryBlue/10 border border-primaryBlue/30 text-xs flex items-start gap-3">
+              <Info className="w-4 h-4 text-primaryBlue flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <div className="font-semibold text-textPrimary font-mono">
+                  Observed Authentication Evidence (Reported by Message Headers)
+                </div>
+                <div className="text-textSecondary leading-relaxed font-sans">
+                  The values below represent authentication outcomes reported directly within the email headers.
+                  This phase extracts and organizes reported evidence and does not claim independent cryptographic verification.
+                </div>
+              </div>
+            </div>
+
+            {/* SPF Evidence Section */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-cyanAccent" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    SPF Evidence ({authentication.spf.results.length} Observed Outcomes)
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-textSecondary">Authentication-Results & Received-SPF</span>
+              </div>
+
+              {authentication.spf.results.length === 0 ? (
+                <p className="text-xs text-textSecondary italic">No SPF authentication headers observed in message.</p>
+              ) : (
+                <div className="space-y-3">
+                  {authentication.spf.results.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-textPrimary uppercase">Reported Result: {item.result}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-textSecondary">
+                            Source: {item.source}
+                          </span>
+                        </div>
+                        {item.clientIp && <span className="text-cyanAccent">{item.clientIp}</span>}
+                      </div>
+
+                      {item.domain && (
+                        <div className="text-textSecondary">
+                          Domain / MailFrom: <strong className="text-textPrimary">{item.domain}</strong>
+                        </div>
+                      )}
+
+                      <div className="text-[11px] text-textSecondary/80 break-all pt-1">
+                        Raw: {item.raw}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* DKIM Evidence Section */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-purpleAccent" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    DKIM Evidence ({authentication.dkim.signatures.length} Signatures, {authentication.dkim.results.length} Reported Results)
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-textSecondary">DKIM-Signature & Authentication-Results</span>
+              </div>
+
+              {/* Reported Results */}
+              {authentication.dkim.results.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-textSecondary font-mono uppercase">Reported DKIM Results:</div>
+                  {authentication.dkim.results.map((res, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-1">
+                      <div className="flex items-center justify-between font-bold text-textPrimary">
+                        <span>Reported Result: {res.result}</span>
+                        {res.domain && <span className="text-purpleAccent">header.d={res.domain}</span>}
+                      </div>
+                      {res.selector && <div className="text-[11px] text-textSecondary">Selector: header.s={res.selector}</div>}
+                      <div className="text-[10px] text-textSecondary/80 break-all">Raw: {res.raw}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Parsed DKIM Signatures */}
+              {authentication.dkim.signatures.length === 0 ? (
+                <p className="text-xs text-textSecondary italic">No DKIM-Signature headers observed in message.</p>
+              ) : (
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs font-bold text-textSecondary font-mono uppercase">Observed DKIM Signatures:</div>
+                  {authentication.dkim.signatures.map((sig, idx) => (
+                    <div key={idx} className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-primaryBlue font-bold">Domain (d=): {sig.domain || 'null'}</span>
+                        <span className="text-textSecondary">Selector (s=): {sig.selector || 'null'}</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-textSecondary">
+                        <div>Algorithm (a=): {sig.algorithm || 'null'}</div>
+                        <div>Canonicalization (c=): {sig.canonicalization ? `${sig.canonicalization.header}/${sig.canonicalization.body}` : 'null'}</div>
+                        <div>Version (v=): {sig.version || 'null'}</div>
+                      </div>
+
+                      {sig.signedHeaders && sig.signedHeaders.length > 0 && (
+                        <div className="text-[11px] text-textSecondary">
+                          Signed Headers (h=): <span className="text-textPrimary">{sig.signedHeaders.join(', ')}</span>
+                        </div>
+                      )}
+
+                      {sig.bodyHash && (
+                        <div className="text-[11px] text-textSecondary break-all">
+                          Body Hash (bh=): {sig.bodyHash}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* DMARC Evidence Section */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-warningAmber" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    DMARC Evidence ({authentication.dmarc.results.length} Reported Results)
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-textSecondary">Reported from Authentication-Results</span>
+              </div>
+
+              {authentication.dmarc.results.length === 0 ? (
+                <p className="text-xs text-textSecondary italic">No DMARC result header observed in message.</p>
+              ) : (
+                <div className="space-y-3">
+                  {authentication.dmarc.results.map((res, idx) => (
+                    <div key={idx} className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-textPrimary uppercase">Reported Result: {res.result}</span>
+                        {res.policy && (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-warningAmber">
+                            Explicit Policy: {res.policy}
+                          </span>
+                        )}
+                      </div>
+
+                      {res.domain && (
+                        <div className="text-textSecondary">
+                          Header Domain (header.from): <strong className="text-textPrimary">{res.domain}</strong>
+                        </div>
+                      )}
+
+                      <div className="text-[11px] text-textSecondary/80 break-all pt-1">
+                        Raw: {res.raw}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* ARC Evidence Section */}
+            {(authentication.arc.seals.length > 0 || authentication.arc.messageSignatures.length > 0 || authentication.arc.authenticationResults.length > 0) && (
+              <Card className="p-6 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                  <div className="flex items-center gap-2">
+                    <Server className="w-4 h-4 text-primaryBlue" />
+                    <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                      Authenticated Received Chain (ARC) Evidence
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-textSecondary">
+                    {authentication.arc.seals.length} Seals • {authentication.arc.messageSignatures.length} Msg Signatures
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {authentication.arc.seals.map((seal, idx) => (
+                    <div key={idx} className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-1">
+                      <div className="flex items-center justify-between font-bold text-textPrimary">
+                        <span className="text-primaryBlue">ARC-Seal [Instance i={seal.instance}]</span>
+                        <span>cv={seal.cv || 'null'}</span>
+                      </div>
+                      <div className="text-[11px] text-textSecondary">
+                        Algorithm: {seal.algorithm} • Domain: {seal.domain} • Selector: {seal.selector}
+                      </div>
+                    </div>
+                  ))}
+
+                  {authentication.arc.messageSignatures.map((ms, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-1">
+                      <div className="flex items-center justify-between font-bold text-textPrimary">
+                        <span className="text-purpleAccent">ARC-Message-Signature [Instance i={ms.instance}]</span>
+                        <span>d={ms.domain}</span>
+                      </div>
+                      <div className="text-[11px] text-textSecondary">
+                        Algorithm: {ms.algorithm} • Selector: {ms.selector}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: ARTIFACTS (PHASE 2) */}
         {activeTab === 'artifacts' && (
           <div className="space-y-6">
             {/* Sender Domains Section */}
@@ -395,7 +634,7 @@ export function EmailForensicPreview({ emailData }) {
           </div>
         )}
 
-        {/* TAB 3: BODY (TEXT & HTML) */}
+        {/* TAB 4: BODY */}
         {activeTab === 'body' && (
           <div className="space-y-6">
             <Card className="p-6 space-y-3">
@@ -437,7 +676,7 @@ export function EmailForensicPreview({ emailData }) {
           </div>
         )}
 
-        {/* TAB 4: MIME STRUCTURE */}
+        {/* TAB 5: MIME STRUCTURE */}
         {activeTab === 'mime' && (
           <Card className="p-6 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-borderSubtle text-xs font-mono">
@@ -474,7 +713,7 @@ export function EmailForensicPreview({ emailData }) {
           </Card>
         )}
 
-        {/* TAB 5: ATTACHMENTS */}
+        {/* TAB 6: ATTACHMENTS */}
         {activeTab === 'attachments' && (
           <Card className="p-6 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-borderSubtle text-xs font-mono text-textSecondary">
@@ -512,7 +751,7 @@ export function EmailForensicPreview({ emailData }) {
           </Card>
         )}
 
-        {/* TAB 6: ALL HEADERS */}
+        {/* TAB 7: ALL HEADERS */}
         {activeTab === 'headers' && (
           <Card className="p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-borderSubtle">

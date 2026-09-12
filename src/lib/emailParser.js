@@ -6,6 +6,7 @@
  */
 
 import { extractArtifacts } from './emailArtifacts.js';
+import { extractAuthenticationEvidence } from './emailAuth.js';
 
 
 /**
@@ -435,6 +436,11 @@ export function parseRawEmail(rawInput) {
         body: {
           text: textBody || '',
           html: htmlBody || ''
+        }
+      }),
+      authentication: extractAuthenticationEvidence({
+        headers: {
+          all: allHeaders
         }
       })
     };

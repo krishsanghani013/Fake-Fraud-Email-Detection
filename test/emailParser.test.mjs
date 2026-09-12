@@ -10,10 +10,17 @@ import {
   isValidIpv4,
   isValidIpv6
 } from '../src/lib/emailArtifacts.js';
+import {
+  parseAuthenticationResults,
+  parseReceivedSpf,
+  parseDkimSignatures,
+  parseArcHeaders,
+  extractAuthenticationEvidence
+} from '../src/lib/emailAuth.js';
 import { POST } from '../src/app/api/parse-eml/route.js';
 
 console.log('====================================================');
-console.log('RUNNING PHASE 1 & 2 PARSER AND ARTIFACT TEST SUITE');
+console.log('RUNNING PHASE 1, 2 & 3 FORENSIC TEST SUITE');
 console.log('====================================================\n');
 
 let passedTests = 0;
@@ -565,6 +572,344 @@ async function runAll() {
     assert.equal(result.data.artifacts.urls.length, 1);
     const u = result.data.artifacts.urls[0];
     assert.equal(u.normalized, 'https://example.com/login'); // trailing dot stripped!
+  });
+
+  console.log('\n--- PHASE 3: EMAIL AUTHENTICATION FORENSICS TESTS ---');
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 1: Authentication-Results SPF PASS
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 1: Authentication-Results SPF PASS', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=example.com',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: SPF Pass Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.ok(result.data.authentication);
+    assert.equal(result.data.authentication.authenticationResults.length, 1);
+    const ar = result.data.authentication.authenticationResults[0];
+    assert.equal(ar.server, 'mx.example.com');
+    assert.equal(ar.spf.result, 'pass');
+    assert.equal(ar.spf.mailFrom, 'example.com');
+    assert.equal(ar.spf.domain, 'example.com');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 2: SPF FAIL
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 2: SPF FAIL', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=example.com',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: SPF Fail Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.authenticationResults[0].spf.result, 'fail');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 3: SPF SOFTFAIL
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 3: SPF SOFTFAIL', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=softfail smtp.mailfrom=example.com',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: SPF Softfail Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    // Crucial: softfail must remain softfail and NOT be converted to fail
+    assert.equal(result.data.authentication.authenticationResults[0].spf.result, 'softfail');
+    assert.equal(result.data.authentication.authenticationResults[0].spf.rawResult, 'softfail');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 4: Received-SPF
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 4: Received-SPF', () => {
+    const raw = [
+      'Received-SPF: pass (domain of example.com designates 203.0.113.10 as permitted sender) client-ip=203.0.113.10;',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: Received-SPF Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.receivedSpf.length, 1);
+    const rs = result.data.authentication.receivedSpf[0];
+    assert.equal(rs.result, 'pass');
+    assert.equal(rs.clientIp, '203.0.113.10');
+    assert.equal(rs.domain, 'example.com');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 5: DKIM Signature
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 5: DKIM Signature', () => {
+    const raw = [
+      'DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com; s=selector1; h=from:to:subject:date; bh=abc123; b=signaturevalue',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: DKIM Signature Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.dkim.signatures.length, 1);
+    const sig = result.data.authentication.dkim.signatures[0];
+    assert.equal(sig.version, '1');
+    assert.equal(sig.algorithm, 'rsa-sha256');
+    assert.deepEqual(sig.canonicalization, { header: 'relaxed', body: 'relaxed' });
+    assert.equal(sig.domain, 'example.com');
+    assert.equal(sig.selector, 'selector1');
+    assert.deepEqual(sig.signedHeaders, ['from', 'to', 'subject', 'date']);
+    assert.equal(sig.bodyHash, 'abc123');
+    assert.equal(sig.signature, 'signaturevalue');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 6: DKIM Authentication Result
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 6: DKIM Authentication Result', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dkim=pass header.d=example.com header.s=selector1',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: DKIM Result Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.dkim.results.length, 1);
+    const dkimRes = result.data.authentication.dkim.results[0];
+    assert.equal(dkimRes.result, 'pass');
+    assert.equal(dkimRes.domain, 'example.com');
+    assert.equal(dkimRes.selector, 'selector1');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 7: DMARC
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 7: DMARC', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=fail header.from=example.com policy=reject',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: DMARC Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.dmarc.results.length, 1);
+    const dmarcRes = result.data.authentication.dmarc.results[0];
+    assert.equal(dmarcRes.result, 'fail');
+    assert.equal(dmarcRes.domain, 'example.com');
+    assert.equal(dmarcRes.policy, 'reject');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 8: Multiple Authentication-Results
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 8: Multiple Authentication-Results', () => {
+    const raw = [
+      'Authentication-Results: mx1.example.com; spf=pass; dkim=pass',
+      'Authentication-Results: mx2.example.net; spf=fail; dkim=fail',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: Multi Auth-Results Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.authenticationResults.length, 2);
+    assert.equal(result.data.authentication.authenticationResults[0].server, 'mx1.example.com');
+    assert.equal(result.data.authentication.authenticationResults[1].server, 'mx2.example.net');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 9: Multiple DKIM Signatures
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 9: Multiple DKIM Signatures', () => {
+    const raw = [
+      'DKIM-Signature: v=1; a=rsa-sha256; d=domain1.com; s=s1; b=sig1',
+      'DKIM-Signature: v=1; a=rsa-sha256; d=domain2.com; s=s2; b=sig2',
+      'From: user@domain1.com',
+      'To: recipient@example.com',
+      'Subject: Multi DKIM Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.dkim.signatures.length, 2);
+    assert.equal(result.data.authentication.dkim.signatures[0].domain, 'domain1.com');
+    assert.equal(result.data.authentication.dkim.signatures[1].domain, 'domain2.com');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 10: ARC
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 10: ARC', () => {
+    const raw = [
+      'ARC-Seal: i=1; a=rsa-sha256; cv=none; d=example.com; s=arc1; b=seal1',
+      'ARC-Message-Signature: i=1; a=rsa-sha256; d=example.com; s=arc1; c=relaxed/relaxed; h=from:to; bh=abc; b=sig1',
+      'ARC-Authentication-Results: i=1; mx.example.com; spf=pass; dkim=pass; dmarc=pass',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: ARC Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const arc = result.data.authentication.arc;
+    assert.equal(arc.seals.length, 1);
+    assert.equal(arc.seals[0].instance, 1);
+    assert.equal(arc.seals[0].cv, 'none');
+    assert.equal(arc.messageSignatures.length, 1);
+    assert.equal(arc.messageSignatures[0].instance, 1);
+    assert.equal(arc.messageSignatures[0].domain, 'example.com');
+    assert.equal(arc.authenticationResults.length, 1);
+    assert.equal(arc.authenticationResults[0].instance, 1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 11: Folded Authentication Header
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 11: Folded Authentication Header', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com;',
+      '    spf=pass;',
+      '    dkim=pass;',
+      '    dmarc=pass',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: Folded Auth Header Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const ar = result.data.authentication.authenticationResults[0];
+    assert.equal(ar.spf.result, 'pass');
+    assert.equal(ar.dkim.result, 'pass');
+    assert.equal(ar.dmarc.result, 'pass');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 12: Missing Optional Authentication Fields
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 12: Missing Optional Authentication Fields', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=pass',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: Partial Auth Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const ar = result.data.authentication.authenticationResults[0];
+    assert.ok(ar.spf);
+    assert.equal(ar.spf.result, 'pass');
+    assert.equal(ar.dkim, null);
+    assert.equal(ar.dmarc, null);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 13: Conflicting SPF Sources
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 13: Conflicting SPF Sources', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=pass',
+      'Received-SPF: fail client-ip=203.0.113.10;',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: Conflicting SPF Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const spfResults = result.data.authentication.spf.results;
+    assert.equal(spfResults.length, 2);
+    const authSpf = spfResults.find((r) => r.source === 'Authentication-Results');
+    const recSpf = spfResults.find((r) => r.source === 'Received-SPF');
+    assert.equal(authSpf.result, 'pass');
+    assert.equal(recSpf.result, 'fail');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 14: Malformed Authentication Header
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 14: Malformed Authentication Header', () => {
+    const raw = [
+      'Authentication-Results: ;;; invalid garbage = = = ;;;',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: Malformed Auth Header Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.authenticationResults.length, 1);
+    assert.ok(result.data.authentication.authenticationResults[0].raw);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 3 - TEST 15: Mixed Header Casing
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 3 - TEST 15: Mixed Header Casing', () => {
+    const raw = [
+      'authentication-results: mx.example.com; spf=pass',
+      'received-spf: pass client-ip=1.2.3.4;',
+      'dkim-signature: v=1; a=rsa-sha256; d=example.com; s=s1; b=sig',
+      'From: user@example.com',
+      'To: recipient@example.com',
+      'Subject: Mixed Header Casing Test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.authentication.authenticationResults.length, 1);
+    assert.equal(result.data.authentication.receivedSpf.length, 1);
+    assert.equal(result.data.authentication.dkim.signatures.length, 1);
   });
 
   // ---------------------------------------------------------------------------
