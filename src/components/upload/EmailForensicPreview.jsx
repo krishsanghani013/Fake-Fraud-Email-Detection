@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Mail,
@@ -26,16 +26,68 @@ import {
   Fingerprint,
   MinusCircle,
   Route,
-  ArrowDown 
+  ArrowDown,
+  Brain,
+  Sparkles,
+  Loader2,
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useToast } from '../ui/Toast';
 
 export function EmailForensicPreview({ emailData }) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'identity' | 'transmission' | 'auth' | 'artifacts' | 'body' | 'mime' | 'attachments' | 'headers'
+  const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'identity' | 'transmission' | 'auth' | 'artifacts' | 'body' | 'mime' | 'attachments' | 'headers' | 'threatIntel' | 'aiAnalysis'
   const [copied, setCopied] = useState(false);
   const [headerFilter, setHeaderFilter] = useState('');
+  const [currentAiAnalysis, setCurrentAiAnalysis] = useState(emailData?.aiAnalysis || { status: 'NOT_RUN' });
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+
+  useEffect(() => {
+    if (emailData?.aiAnalysis) {
+      setCurrentAiAnalysis(emailData.aiAnalysis);
+    }
+  }, [emailData]);
+
+  const handleRunAiAnalysis = async () => {
+    setIsAiLoading(true);
+    setAiError(null);
+    setCurrentAiAnalysis((prev) => ({ ...prev, status: 'RUNNING' }));
+    try {
+      const res = await fetch('/api/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailData })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const errorMsg = data.error || `HTTP ${res.status}: Failed to generate AI analysis`;
+        setAiError(errorMsg);
+        setCurrentAiAnalysis({
+          status: res.status === 429 ? 'RATE_LIMITED' : 'ERROR',
+          error: errorMsg,
+          reason: errorMsg
+        });
+        toast('AI Analysis Notice', errorMsg, 'error');
+      } else {
+        setCurrentAiAnalysis(data.aiAnalysis);
+        toast('AI Analysis Complete', 'Evidence-grounded explanation generated successfully.', 'success');
+      }
+    } catch (err) {
+      const errorMsg = err.message || 'Network error while contacting AI analysis endpoint';
+      setAiError(errorMsg);
+      setCurrentAiAnalysis({
+        status: 'UNAVAILABLE',
+        error: errorMsg,
+        reason: errorMsg
+      });
+      toast('AI Analysis Unavailable', errorMsg, 'error');
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   if (!emailData) return null;
 
@@ -290,6 +342,17 @@ export function EmailForensicPreview({ emailData }) {
           }`}
         >
           <Fingerprint className="w-4 h-4 text-purpleAccent" /> Threat Intel ({threatIntel.findings?.length || 0})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('aiAnalysis')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'aiAnalysis'
+              ? 'bg-purpleAccent/20 text-purpleAccent border border-purpleAccent/40 shadow-glowPurple'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <Brain className="w-4 h-4 text-purpleAccent" /> AI Explanation {currentAiAnalysis?.status === 'AVAILABLE' ? '✓' : ''}
         </button>
       </div>
 
@@ -1938,6 +2001,464 @@ export function EmailForensicPreview({ emailData }) {
                   ))}
                 </div>
               </Card>
+            )}
+          </div>
+        )}
+
+        {/* TAB 11: AI EXPLANATION */}
+        {activeTab === 'aiAnalysis' && (
+          <div className="space-y-6">
+            {/* Header / Disclaimer Banner */}
+            <Card className="p-6 space-y-4 border border-purpleAccent/30 bg-purpleAccent/5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-purpleAccent/20 border border-purpleAccent/40 text-purpleAccent">
+                    <Brain className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold font-heading text-textPrimary flex items-center gap-2">
+                      AI-Generated Explanation
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purpleAccent/20 text-purpleAccent border border-purpleAccent/30">
+                        GEMINI 1.5
+                      </span>
+                    </h3>
+                    <p className="text-xs text-textSecondary">
+                      Evidence-grounded narrative analysis interpreting deterministic forensic pipeline evidence.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Status Badge & Trigger Button */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase tracking-wider border ${
+                      currentAiAnalysis.status === 'AVAILABLE'
+                        ? 'bg-successGreen/20 text-successGreen border-successGreen/40'
+                        : currentAiAnalysis.status === 'RUNNING'
+                        ? 'bg-purpleAccent/20 text-purpleAccent border-purpleAccent/40 animate-pulse'
+                        : currentAiAnalysis.status === 'ERROR' || currentAiAnalysis.status === 'UNAVAILABLE'
+                        ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                        : currentAiAnalysis.status === 'RATE_LIMITED'
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                        : 'bg-white/10 text-textSecondary border-white/20'
+                    }`}
+                  >
+                    {currentAiAnalysis.status === 'RUNNING' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {currentAiAnalysis.status === 'AVAILABLE' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                    {(currentAiAnalysis.status === 'ERROR' || currentAiAnalysis.status === 'UNAVAILABLE') && <AlertTriangle className="w-3.5 h-3.5" />}
+                    STATUS: {currentAiAnalysis.status}
+                  </span>
+
+                  <button
+                    onClick={handleRunAiAnalysis}
+                    disabled={isAiLoading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purpleAccent hover:bg-purpleAccent/90 disabled:opacity-50 text-white text-xs font-bold font-mono transition-all shadow-glowPurple"
+                  >
+                    {isAiLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" /> {currentAiAnalysis.status === 'AVAILABLE' ? 'Re-run AI Analysis' : 'Run AI Analysis'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Mandatory AI Disclaimer (Prompt Section 27) */}
+              <div className="p-3.5 rounded-xl bg-darkBg/60 border border-white/10 text-xs text-textSecondary flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-purpleAccent flex-shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  <strong className="text-textPrimary font-mono uppercase text-[11px]">Forensic AI Disclaimer:</strong>{' '}
+                  AI analysis is an interpretation of the forensic evidence produced by the platform. The deterministic forensic findings and risk score remain authoritative. AI-generated text may contain interpretation errors and must be reviewed by a human analyst.
+                </p>
+              </div>
+            </Card>
+
+            {/* STATE: NOT_RUN */}
+            {currentAiAnalysis.status === 'NOT_RUN' && (
+              <Card className="p-12 text-center space-y-4 border border-dashed border-borderSubtle">
+                <div className="inline-flex p-4 rounded-3xl bg-purpleAccent/10 border border-purpleAccent/30 text-purpleAccent mb-2">
+                  <Brain className="w-8 h-8" />
+                </div>
+                <h4 className="text-base font-bold font-heading text-textPrimary">
+                  No AI Analysis Generated Yet
+                </h4>
+                <p className="text-xs text-textSecondary max-w-lg mx-auto leading-relaxed">
+                  Trigger an evidence-grounded Gemini interpretation of this email. The AI receives structured forensic evidence from Phases 1–7 (metadata, authentication, sender identity, hop latency, and threat reputation) with stable evidence IDs without altering the deterministic risk score.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={handleRunAiAnalysis}
+                    disabled={isAiLoading}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-purpleAccent hover:bg-purpleAccent/90 disabled:opacity-50 text-white text-xs font-bold font-mono transition-all shadow-glowPurple"
+                  >
+                    <Sparkles className="w-4 h-4" /> Run AI Forensic Explanation
+                  </button>
+                </div>
+              </Card>
+            )}
+
+            {/* STATE: RUNNING */}
+            {currentAiAnalysis.status === 'RUNNING' && (
+              <Card className="p-12 text-center space-y-4">
+                <Loader2 className="w-10 h-10 animate-spin text-purpleAccent mx-auto" />
+                <h4 className="text-sm font-bold font-heading text-textPrimary">
+                  Generating AI Forensic Explanation...
+                </h4>
+                <p className="text-xs text-textSecondary max-w-md mx-auto font-mono">
+                  Constructing sanitized evidence package with stable IDs and prompting Gemini for structured explanation.
+                </p>
+              </Card>
+            )}
+
+            {/* STATE: ERROR / UNAVAILABLE / RATE_LIMITED */}
+            {(currentAiAnalysis.status === 'ERROR' || currentAiAnalysis.status === 'UNAVAILABLE' || currentAiAnalysis.status === 'RATE_LIMITED') && (
+              <Card className="p-6 space-y-4 border border-red-500/30 bg-red-500/5">
+                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-2 text-red-400">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span className="text-xs font-bold font-mono uppercase tracking-wider">
+                      AI Explanation Unavailable ({currentAiAnalysis.status})
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-textSecondary">
+                    AI failure impact: 0 risk points
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+                  <div className="p-3 rounded-xl bg-surfaceSecondary border border-borderSubtle">
+                    <div className="text-textSecondary text-[10px]">Deterministic Pipeline Status</div>
+                    <div className="text-successGreen font-bold mt-1 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> AVAILABLE & AUTHORITATIVE
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-surfaceSecondary border border-borderSubtle">
+                    <div className="text-textSecondary text-[10px]">Deterministic Risk Score</div>
+                    <div className="text-textPrimary font-bold mt-1">
+                      {risk.totalScore}/100 ({risk.level}) — Unaffected
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-darkBg/60 border border-white/10 text-xs font-mono text-textSecondary">
+                  <strong className="text-red-400">Reason:</strong>{' '}
+                  {currentAiAnalysis.error || currentAiAnalysis.reason || 'AI service could not be reached.'}
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={handleRunAiAnalysis}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surfaceSecondary border border-borderSubtle hover:border-purpleAccent/40 text-textPrimary text-xs font-semibold transition-all"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-purpleAccent" /> Retry AI Analysis
+                  </button>
+                </div>
+              </Card>
+            )}
+
+            {/* STATE: AVAILABLE */}
+            {currentAiAnalysis.status === 'AVAILABLE' && (
+              <div className="space-y-6">
+                {/* Score Alignment & Metadata Overview */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="p-4 space-y-1">
+                    <div className="text-[10px] font-mono uppercase text-textSecondary">Authoritative Score</div>
+                    <div className="text-lg font-bold font-mono text-textPrimary flex items-center gap-2">
+                      <span>{currentAiAnalysis.assessment?.riskScore ?? risk.totalScore}/100</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/30">
+                        {currentAiAnalysis.assessment?.riskLevel ?? risk.level}
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-mono text-textSecondary">Phase 6 Deterministic Engine</div>
+                  </Card>
+
+                  <Card className="p-4 space-y-1">
+                    <div className="text-[10px] font-mono uppercase text-textSecondary">AI Confidence</div>
+                    <div className="text-lg font-bold font-mono text-purpleAccent">
+                      {currentAiAnalysis.assessment?.confidence || 'HIGH'}
+                    </div>
+                    <div className="text-[10px] font-mono text-textSecondary">Based on evidence completeness</div>
+                  </Card>
+
+                  <Card className="p-4 space-y-1">
+                    <div className="text-[10px] font-mono uppercase text-textSecondary">AI Model</div>
+                    <div className="text-lg font-bold font-mono text-textPrimary">
+                      {currentAiAnalysis.model || 'gemini-1.5-flash'}
+                    </div>
+                    <div className="text-[10px] font-mono text-textSecondary">Official Google Gemini API</div>
+                  </Card>
+
+                  <Card className="p-4 space-y-1">
+                    <div className="text-[10px] font-mono uppercase text-textSecondary">Generated Timestamp</div>
+                    <div className="text-xs font-bold font-mono text-textPrimary truncate mt-1">
+                      {currentAiAnalysis.generatedAt ? new Date(currentAiAnalysis.generatedAt).toLocaleTimeString() : 'Just now'}
+                    </div>
+                    <div className="text-[10px] font-mono text-textSecondary">Cached in session lifecycle</div>
+                  </Card>
+                </div>
+
+                {/* Executive Summary Card */}
+                <Card className="p-6 space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-borderSubtle">
+                    <Brain className="w-4 h-4 text-purpleAccent" />
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                      Executive Summary
+                    </h4>
+                  </div>
+                  <p className="text-sm text-textPrimary leading-relaxed font-sans">
+                    {currentAiAnalysis.summary}
+                  </p>
+                </Card>
+
+                {/* Key Findings with Grounded Evidence IDs */}
+                {currentAiAnalysis.keyFindings?.length > 0 && (
+                  <Card className="p-6 space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-warningYellow" />
+                        <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                          Key Evidence Findings ({currentAiAnalysis.keyFindings.length})
+                        </h4>
+                      </div>
+                      <span className="text-[11px] font-mono text-textSecondary">
+                        Strictly Grounded in Pipeline Evidence IDs
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {currentAiAnalysis.keyFindings.map((finding, idx) => (
+                        <div
+                          key={idx}
+                          className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-2 hover:border-purpleAccent/30 transition-all"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded ${
+                                  finding.severity === 'CRITICAL'
+                                    ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                                    : finding.severity === 'HIGH'
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                    : finding.severity === 'MEDIUM'
+                                    ? 'bg-warningYellow/20 text-warningYellow border border-warningYellow/40'
+                                    : 'bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/40'
+                                }`}
+                              >
+                                {finding.severity}
+                              </span>
+                              <h5 className="text-xs font-bold text-textPrimary">
+                                {finding.title}
+                              </h5>
+                            </div>
+
+                            {/* Evidence IDs */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {finding.evidenceIds?.map((eid, eIdx) => (
+                                <span
+                                  key={eIdx}
+                                  className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purpleAccent/10 border border-purpleAccent/30 text-purpleAccent"
+                                >
+                                  {eid}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-textSecondary leading-relaxed">
+                            {finding.explanation}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* 4-Domain Interpretations Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Authentication Interpretation */}
+                  {currentAiAnalysis.authenticationAnalysis && (
+                    <Card className="p-6 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-primaryBlue" />
+                          <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                            Authentication Interpretation
+                          </h4>
+                        </div>
+                        <div className="flex gap-1">
+                          {currentAiAnalysis.authenticationAnalysis.evidenceIds?.map((eid, i) => (
+                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-textSecondary">
+                              {eid}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-textSecondary leading-relaxed">
+                        {currentAiAnalysis.authenticationAnalysis.summary}
+                      </p>
+                      {currentAiAnalysis.authenticationAnalysis.observations?.length > 0 && (
+                        <ul className="space-y-1.5 text-xs text-textPrimary pt-2 border-t border-borderSubtle/50">
+                          {currentAiAnalysis.authenticationAnalysis.observations.map((obs, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-primaryBlue">•</span>
+                              <span>{obs}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </Card>
+                  )}
+
+                  {/* Sender Identity Interpretation */}
+                  {currentAiAnalysis.senderIdentityAnalysis && (
+                    <Card className="p-6 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                        <div className="flex items-center gap-2">
+                          <UserCheck className="w-4 h-4 text-warningYellow" />
+                          <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                            Sender Identity Interpretation
+                          </h4>
+                        </div>
+                        <div className="flex gap-1">
+                          {currentAiAnalysis.senderIdentityAnalysis.evidenceIds?.map((eid, i) => (
+                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-textSecondary">
+                              {eid}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-textSecondary leading-relaxed">
+                        {currentAiAnalysis.senderIdentityAnalysis.summary}
+                      </p>
+                      {currentAiAnalysis.senderIdentityAnalysis.observations?.length > 0 && (
+                        <ul className="space-y-1.5 text-xs text-textPrimary pt-2 border-t border-borderSubtle/50">
+                          {currentAiAnalysis.senderIdentityAnalysis.observations.map((obs, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-warningYellow">•</span>
+                              <span>{obs}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </Card>
+                  )}
+
+                  {/* Transmission Interpretation */}
+                  {currentAiAnalysis.transmissionAnalysis && (
+                    <Card className="p-6 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                        <div className="flex items-center gap-2">
+                          <Route className="w-4 h-4 text-primaryBlue" />
+                          <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                            Mail Route Interpretation
+                          </h4>
+                        </div>
+                        <div className="flex gap-1">
+                          {currentAiAnalysis.transmissionAnalysis.evidenceIds?.map((eid, i) => (
+                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-textSecondary">
+                              {eid}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-textSecondary leading-relaxed">
+                        {currentAiAnalysis.transmissionAnalysis.summary}
+                      </p>
+                      {currentAiAnalysis.transmissionAnalysis.observations?.length > 0 && (
+                        <ul className="space-y-1.5 text-xs text-textPrimary pt-2 border-t border-borderSubtle/50">
+                          {currentAiAnalysis.transmissionAnalysis.observations.map((obs, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-primaryBlue">•</span>
+                              <span>{obs}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </Card>
+                  )}
+
+                  {/* Threat Intelligence Interpretation */}
+                  {currentAiAnalysis.threatIntelligenceAnalysis && (
+                    <Card className="p-6 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                        <div className="flex items-center gap-2">
+                          <Fingerprint className="w-4 h-4 text-purpleAccent" />
+                          <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                            Threat Intelligence Interpretation
+                          </h4>
+                        </div>
+                        <div className="flex gap-1">
+                          {currentAiAnalysis.threatIntelligenceAnalysis.evidenceIds?.map((eid, i) => (
+                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-textSecondary">
+                              {eid}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-textSecondary leading-relaxed">
+                        {currentAiAnalysis.threatIntelligenceAnalysis.summary}
+                      </p>
+                      {currentAiAnalysis.threatIntelligenceAnalysis.observations?.length > 0 && (
+                        <ul className="space-y-1.5 text-xs text-textPrimary pt-2 border-t border-borderSubtle/50">
+                          {currentAiAnalysis.threatIntelligenceAnalysis.observations.map((obs, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-purpleAccent">•</span>
+                              <span>{obs}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </Card>
+                  )}
+                </div>
+
+                {/* Recommended Analyst Actions */}
+                {currentAiAnalysis.recommendedActions?.length > 0 && (
+                  <Card className="p-6 space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-borderSubtle">
+                      <CheckCircle2 className="w-4 h-4 text-successGreen" />
+                      <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                        Recommended Analyst Actions
+                      </h4>
+                    </div>
+                    <div className="space-y-2">
+                      {currentAiAnalysis.recommendedActions.map((action, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 rounded-xl bg-surfaceSecondary border border-borderSubtle text-xs text-textPrimary flex items-start gap-2.5"
+                        >
+                          <span className="font-mono text-purpleAccent font-bold text-xs">{idx + 1}.</span>
+                          <span>{action}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Limitations & Uncertainty */}
+                {currentAiAnalysis.limitations?.length > 0 && (
+                  <Card className="p-6 space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-borderSubtle">
+                      <Info className="w-4 h-4 text-warningYellow" />
+                      <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                        Forensic Scope Limitations & Uncertainty
+                      </h4>
+                    </div>
+                    <ul className="space-y-1.5 text-xs text-textSecondary">
+                      {currentAiAnalysis.limitations.map((lim, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-warningYellow">•</span>
+                          <span>{lim}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                )}
+              </div>
             )}
           </div>
         )}

@@ -477,6 +477,23 @@ export function parseRawEmail(rawInput) {
     // Phase 6: Deterministic Forensic Risk Engine
     normalizedEmail.risk = analyzeRisk(normalizedEmail);
 
+    // Phase 8: Explainable AI Analysis Model (Initial un-run state; does not alter risk score)
+    normalizedEmail.aiAnalysis = {
+      status: 'NOT_RUN',
+      model: null,
+      generatedAt: null,
+      summary: null,
+      assessment: null,
+      keyFindings: [],
+      authenticationAnalysis: null,
+      senderIdentityAnalysis: null,
+      transmissionAnalysis: null,
+      threatIntelligenceAnalysis: null,
+      recommendedActions: [],
+      limitations: [],
+      evidenceCoverage: null
+    };
+
     return {
       success: true,
       data: normalizedEmail,
