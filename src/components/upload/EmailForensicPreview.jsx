@@ -26,7 +26,7 @@ import {
   Fingerprint,
   MinusCircle,
   Route,
-  ArrowDown
+  ArrowDown 
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useToast } from '../ui/Toast';
@@ -72,13 +72,23 @@ export function EmailForensicPreview({ emailData }) {
       findings: [],
       summary: { hopCount: 0, ipCount: 0, timestampCount: 0, totalLatencySeconds: null }
     },
+    threatIntel = {
+      status: 'unavailable',
+      provider: 'none',
+      lookedUpAt: null,
+      ips: [],
+      urls: [],
+      domains: [],
+      findings: [],
+      summary: { totalArtifacts: 0, totalChecked: 0, skippedCount: 0, maliciousCount: 0, suspiciousCount: 0, cleanCount: 0, unknownCount: 0 }
+    },
     risk = {
       version: '1.0',
       totalScore: 0,
       rawScore: 0,
       level: 'LOW',
       contributions: [],
-      summary: { totalContributions: 0, categories: { authentication: 0, sender_identity: 0, transmission: 0 } },
+      summary: { totalContributions: 0, categories: { authentication: 0, sender_identity: 0, transmission: 0, threat_intelligence: 0 } },
       methodology: { type: 'deterministic', version: '1.0' }
     }
   } = emailData;
@@ -270,6 +280,17 @@ export function EmailForensicPreview({ emailData }) {
         >
           <Code className="w-4 h-4" /> All Headers ({headers.all.length})
         </button>
+
+        <button
+          onClick={() => setActiveTab('threatIntel')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'threatIntel'
+              ? 'bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/40 shadow-glowBlue'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <Fingerprint className="w-4 h-4 text-purpleAccent" /> Threat Intel ({threatIntel.findings?.length || 0})
+        </button>
       </div>
 
       {/* Tab Panels */}
@@ -371,8 +392,8 @@ export function EmailForensicPreview({ emailData }) {
             </div>
 
             {/* Score Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-mono">
-              <div className="p-5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-2 md:col-span-1 flex flex-col justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs font-mono">
+              <div className="p-5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-2 lg:col-span-1 flex flex-col justify-between">
                 <span className="text-textSecondary text-[11px] uppercase tracking-wider">Total Risk Score</span>
                 <div className="flex items-baseline gap-2">
                   <span
@@ -431,6 +452,14 @@ export function EmailForensicPreview({ emailData }) {
                 </div>
                 <span className="text-[10px] text-textSecondary">Negative latency, host handoff</span>
               </div>
+
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Threat Intelligence:</span>
+                <div className="text-2xl font-bold text-red-400">
+                  +{risk.summary?.categories?.threat_intelligence || 0}
+                </div>
+                <span className="text-[10px] text-textSecondary">IP, URL & Domain Reputation</span>
+              </div>
             </div>
 
             {/* Itemized Risk Contributions */}
@@ -450,7 +479,7 @@ export function EmailForensicPreview({ emailData }) {
               {risk.contributions?.length === 0 ? (
                 <div className="p-4 rounded-2xl bg-successGreen/10 border border-successGreen/20 text-xs font-mono text-successGreen flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>No risk contributions detected. Evaluated email evidence shows no authentication failures, identity mismatches, or transmission anomalies.</span>
+                  <span>No risk contributions detected. Evaluated email evidence shows no authentication failures, identity mismatches, transmission anomalies, or threat intelligence hits.</span>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -488,6 +517,13 @@ export function EmailForensicPreview({ emailData }) {
                             <div><strong>Source B ({c.evidence.sourceB.type}):</strong> {c.evidence.sourceB.domain}</div>
                           )}
                           {c.evidence.type && <div><strong>Anomaly Type:</strong> {c.evidence.type}</div>}
+                          {c.evidence.artifact && <div><strong>Threat Intel Artifact:</strong> {c.evidence.artifact}</div>}
+                          {c.evidence.provider && <div><strong>Threat Intel Provider:</strong> {c.evidence.provider}</div>}
+                          {c.evidence.providerVerdict && <div><strong>Provider Verdict:</strong> <span className="uppercase text-red-400 font-bold">{c.evidence.providerVerdict}</span></div>}
+                          {c.evidence.confidence !== null && c.evidence.confidence !== undefined && (
+                            <div><strong>Confidence / Abuse Score:</strong> {c.evidence.confidence}%</div>
+                          )}
+                          {c.evidence.checkedAt && <div><strong>Checked At:</strong> {c.evidence.checkedAt}</div>}
                           {c.evidence.raw && <div><strong>Raw Header:</strong> {c.evidence.raw}</div>}
                         </div>
                       )}
@@ -1528,6 +1564,382 @@ export function EmailForensicPreview({ emailData }) {
               )}
             </div>
           </Card>
+        )}
+
+        {/* TAB: THREAT INTELLIGENCE (PHASE 7) */}
+        {activeTab === 'threatIntel' && (
+          <div className="space-y-6">
+            {/* Principles & Forensic Disclaimer Banner */}
+            <div className="p-4 rounded-2xl bg-purpleAccent/10 border border-purpleAccent/30 text-xs flex items-start gap-3">
+              <Fingerprint className="w-4 h-4 text-purpleAccent flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <div className="font-semibold text-textPrimary font-mono flex items-center gap-2">
+                  <span>External Threat Intelligence & Reputation Enrichment (Phase 7)</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 uppercase tracking-wider text-purpleAccent">
+                    Passive Forensics Only
+                  </span>
+                </div>
+                <div className="text-textSecondary leading-relaxed font-sans">
+                  Threat intelligence serves as an <strong>external reputation enrichment layer</strong> and does <em>not</em> independently prove that an email is fraudulent.
+                  Observable malicious or suspicious findings contribute deterministically to the risk score (+25 for malicious, +12 for suspicious).
+                  Crucially, <strong>missing, unknown, or unavailable intelligence is NEVER assumed to be malicious (0 points)</strong>.
+                  Internal/private IP addresses (RFC 1918) are strictly filtered and never leaked to third parties.
+                </div>
+              </div>
+            </div>
+
+            {/* Provider Status & Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs font-mono">
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Active Provider:</span>
+                <div className="text-lg font-bold text-textPrimary uppercase tracking-wide">
+                  {threatIntel.provider || 'None'}
+                </div>
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${
+                      threatIntel.status === 'available'
+                        ? 'bg-successGreen'
+                        : threatIntel.status === 'partial'
+                        ? 'bg-warningYellow'
+                        : threatIntel.status === 'rate_limited'
+                        ? 'bg-amber-400'
+                        : 'bg-textSecondary'
+                    }`}
+                  />
+                  <span className="text-[10px] font-bold uppercase text-textSecondary">
+                    Status: {threatIntel.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Total Evaluated:</span>
+                <div className="text-2xl font-bold text-textPrimary">
+                  {threatIntel.summary?.totalChecked || 0}
+                </div>
+                <span className="text-[10px] text-textSecondary">
+                  {threatIntel.summary?.totalArtifacts || 0} extracted artifacts
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Malicious Findings:</span>
+                <div className="text-2xl font-bold text-red-400">
+                  {threatIntel.summary?.maliciousCount || 0}
+                </div>
+                <span className="text-[10px] text-red-400/80">+25 pts each in Risk Engine</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Suspicious Findings:</span>
+                <div className="text-2xl font-bold text-amber-400">
+                  {threatIntel.summary?.suspiciousCount || 0}
+                </div>
+                <span className="text-[10px] text-amber-400/80">+12 pts each in Risk Engine</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Privacy Preserved:</span>
+                <div className="text-2xl font-bold text-cyanAccent">
+                  {threatIntel.summary?.skippedCount || 0}
+                </div>
+                <span className="text-[10px] text-textSecondary">RFC 1918 / loopback IPs skipped</span>
+              </div>
+            </div>
+
+            {/* SECTION 1: IP REPUTATION FORENSICS */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <Network className="w-4 h-4 text-primaryBlue" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    IP Address Reputation ({threatIntel.ips?.length || 0})
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono text-textSecondary">
+                  Privacy Policy: Non-public addresses strictly preserved
+                </span>
+              </div>
+
+              {(!threatIntel.ips || threatIntel.ips.length === 0) ? (
+                <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono text-textSecondary">
+                  No IP address artifacts were evaluated for threat intelligence in this email.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {threatIntel.ips.map((item, idx) => {
+                    const isMalicious = item.status === 'malicious';
+                    const isSuspicious = item.status === 'suspicious';
+                    const isClean = item.status === 'clean';
+                    const isSkipped = item.status === 'skipped' || item.isPrivate;
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-3 hover:border-white/20 transition-all"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-textPrimary text-sm select-all">
+                              {item.artifact}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-white/5 text-textSecondary uppercase">
+                              IPv{item.version || 4} • {item.ipType || 'unknown'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider text-[10px] border ${
+                                isMalicious
+                                  ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-glowRed'
+                                  : isSuspicious
+                                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                  : isClean
+                                  ? 'bg-successGreen/20 text-successGreen border-successGreen/40'
+                                  : isSkipped
+                                  ? 'bg-cyanAccent/10 text-cyanAccent border-cyanAccent/30'
+                                  : 'bg-white/5 text-textSecondary border-white/10'
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-textSecondary">
+                              {isMalicious ? '+25 pts' : isSuspicious ? '+12 pts' : '0 pts'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Explainability Evidence Box */}
+                        <div className="p-3 rounded-xl bg-surfacePrimary/80 border border-borderSubtle text-[11px] space-y-1">
+                          <div className="flex items-center justify-between text-textSecondary text-[10px]">
+                            <span>Provider: <strong className="text-textPrimary">{item.provider}</strong></span>
+                            {item.evidence?.checkedAt && <span>Checked: {item.evidence.checkedAt}</span>}
+                          </div>
+                          {item.evidence?.reason && (
+                            <div className="text-textSecondary leading-relaxed pt-1">
+                              <strong>Forensic Note:</strong> {item.evidence.reason}
+                            </div>
+                          )}
+                          {item.score !== undefined && item.score > 0 && (
+                            <div className="text-textSecondary">
+                              <strong>Abuse / Confidence Score:</strong> {item.score}%
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+
+            {/* SECTION 2: URL REPUTATION FORENSICS */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-4 h-4 text-purpleAccent" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    URL Reputation ({threatIntel.urls?.length || 0})
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono text-textSecondary">
+                  Zero Execution Policy: Content never fetched or rendered
+                </span>
+              </div>
+
+              {(!threatIntel.urls || threatIntel.urls.length === 0) ? (
+                <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono text-textSecondary">
+                  No URL artifacts were evaluated for threat intelligence in this email.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {threatIntel.urls.map((item, idx) => {
+                    const isMalicious = item.status === 'malicious';
+                    const isSuspicious = item.status === 'suspicious';
+                    const isClean = item.status === 'clean';
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-3 hover:border-white/20 transition-all"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 max-w-xl truncate">
+                            <span className="font-bold text-textPrimary text-xs break-all select-all">
+                              {item.artifact}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider text-[10px] border ${
+                                isMalicious
+                                  ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-glowRed'
+                                  : isSuspicious
+                                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                  : isClean
+                                  ? 'bg-successGreen/20 text-successGreen border-successGreen/40'
+                                  : 'bg-white/5 text-textSecondary border-white/10'
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-textSecondary">
+                              {isMalicious ? '+25 pts' : isSuspicious ? '+12 pts' : '0 pts'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Explainability Evidence Box */}
+                        <div className="p-3 rounded-xl bg-surfacePrimary/80 border border-borderSubtle text-[11px] space-y-1">
+                          <div className="flex items-center justify-between text-textSecondary text-[10px]">
+                            <span>Provider: <strong className="text-textPrimary">{item.provider}</strong></span>
+                            {item.evidence?.checkedAt && <span>Checked: {item.evidence.checkedAt}</span>}
+                          </div>
+                          {item.evidence?.source && (
+                            <div className="text-textSecondary">
+                              <strong>Source Feed:</strong> {item.evidence.source}
+                            </div>
+                          )}
+                          {item.score !== undefined && item.score > 0 && (
+                            <div className="text-textSecondary">
+                              <strong>Confidence / Reputation Score:</strong> {item.score}%
+                            </div>
+                          )}
+                          <div className="text-[10px] text-textSecondary/70 italic pt-1">
+                            Passive lookup only. The email-analysis engine never executes HTML or navigates to extracted links.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+
+            {/* SECTION 3: DOMAIN REPUTATION FORENSICS */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-cyanAccent" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    Domain Reputation ({threatIntel.domains?.length || 0})
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono text-textSecondary">
+                  Reconnaissance Policy: No active DNS/WHOIS lookups executed
+                </span>
+              </div>
+
+              {(!threatIntel.domains || threatIntel.domains.length === 0) ? (
+                <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono text-textSecondary">
+                  No domain artifacts were evaluated for threat intelligence in this email.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {threatIntel.domains.map((item, idx) => {
+                    const isMalicious = item.status === 'malicious';
+                    const isSuspicious = item.status === 'suspicious';
+                    const isClean = item.status === 'clean';
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-3 hover:border-white/20 transition-all"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-textPrimary text-sm select-all">
+                              {item.artifact}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider text-[10px] border ${
+                                isMalicious
+                                  ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-glowRed'
+                                  : isSuspicious
+                                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                  : isClean
+                                  ? 'bg-successGreen/20 text-successGreen border-successGreen/40'
+                                  : 'bg-white/5 text-textSecondary border-white/10'
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-textSecondary">
+                              {isMalicious ? '+25 pts' : isSuspicious ? '+12 pts' : '0 pts'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Explainability Evidence Box */}
+                        <div className="p-3 rounded-xl bg-surfacePrimary/80 border border-borderSubtle text-[11px] space-y-1">
+                          <div className="flex items-center justify-between text-textSecondary text-[10px]">
+                            <span>Provider: <strong className="text-textPrimary">{item.provider}</strong></span>
+                            {item.evidence?.checkedAt && <span>Checked: {item.evidence.checkedAt}</span>}
+                          </div>
+                          {item.evidence?.source && (
+                            <div className="text-textSecondary">
+                              <strong>Source:</strong> {item.evidence.source}
+                            </div>
+                          )}
+                          {item.score !== undefined && item.score > 0 && (
+                            <div className="text-textSecondary">
+                              <strong>Reputation Score:</strong> {item.score}%
+                            </div>
+                          )}
+                          <div className="text-[10px] text-textSecondary/70 italic pt-1">
+                            Passive intelligence query. No active DNS resolution, reverse DNS, or WHOIS queries were made.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+
+            {/* SECTION 4: OPERATIONAL FINDINGS & STATUS */}
+            {threatIntel.findings && threatIntel.findings.some(f => f.type === 'operational_status') && (
+              <Card className="p-6 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-4 h-4 text-warningYellow" />
+                    <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                      Operational Status Notices
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-mono text-textSecondary">
+                    Health Information: +0 risk points (Missing ≠ Malicious)
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {threatIntel.findings.filter(f => f.type === 'operational_status').map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-warningYellow/10 border border-warningYellow/30 text-xs font-mono text-warningYellow flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <span>{item.message}</span>
+                      </div>
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-white/10">
+                        {item.id}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
         )}
       </div>
     </div>

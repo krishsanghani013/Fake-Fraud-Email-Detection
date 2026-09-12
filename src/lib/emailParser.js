@@ -454,6 +454,26 @@ export function parseRawEmail(rawInput) {
     // Phase 5: Header Transmission & Hop Analysis
     normalizedEmail.transmission = analyzeEmailTransmission(normalizedEmail);
 
+    // Phase 7: Threat Intelligence Model (Initial un-enriched / offline state; contributes 0 risk points)
+    normalizedEmail.threatIntel = {
+      status: 'unavailable',
+      provider: 'none',
+      lookedUpAt: null,
+      ips: [],
+      urls: [],
+      domains: [],
+      findings: [],
+      summary: {
+        totalArtifacts: 0,
+        totalChecked: 0,
+        skippedCount: 0,
+        maliciousCount: 0,
+        suspiciousCount: 0,
+        cleanCount: 0,
+        unknownCount: 0
+      }
+    };
+
     // Phase 6: Deterministic Forensic Risk Engine
     normalizedEmail.risk = analyzeRisk(normalizedEmail);
 

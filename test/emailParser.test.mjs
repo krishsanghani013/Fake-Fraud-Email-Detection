@@ -40,9 +40,19 @@ import {
   DETERMINISTIC_RISK_POLICY
 } from '../src/lib/riskEngine.js';
 import { POST } from '../src/app/api/parse-eml/route.js';
+import {
+  enrichThreatIntel,
+  createThreatIntelProvider,
+  evaluateIpRoutability,
+  THREAT_VERDICTS
+} from '../src/lib/threatIntel.js';
+import { MockThreatIntelProvider } from '../src/lib/threat-intel/mockProvider.js';
+import { VirusTotalAdapter } from '../src/lib/threat-intel/virusTotalAdapter.js';
+import { AbuseIpdbAdapter } from '../src/lib/threat-intel/abuseIpdbAdapter.js';
+import { POST as threatIntelRoute } from '../src/app/api/threat-intel/route.js';
 
 console.log('====================================================');
-console.log('RUNNING PHASE 1, 2, 3, 4, 5 & 6 FORENSIC TEST SUITE');
+console.log('RUNNING PHASE 1, 2, 3, 4, 5, 6 & 7 FORENSIC TEST SUITE');
 console.log('====================================================\n');
 
 let passedTests = 0;
@@ -2156,6 +2166,424 @@ async function runAll() {
     assert.equal(result.data.risk.totalScore, 0);
     assert.equal(result.data.risk.level, 'LOW');
     assert.equal(result.data.risk.contributions.length, 0);
+  });
+
+  // ===========================================================================
+  // PHASE 7: THREAT INTELLIGENCE & REPUTATION ENRICHMENT TESTS
+  // ===========================================================================
+  console.log('\n--- PHASE 7: THREAT INTELLIGENCE & REPUTATION ENRICHMENT TESTS ---');
+
+  // PHASE 7 - TEST 1: Clean IP address enrichment
+  await runTest('PHASE 7 - TEST 1: Clean IP address enrichment', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        ips: { '198.51.100.1': { status: THREAT_VERDICTS.CLEAN, score: 0, evidence: { source: 'Clean Feed' } } }
+      }
+    });
+    const res = await enrichThreatIntel({ ips: ['198.51.100.1'] }, { provider: mock });
+    assert.equal(res.status, 'available');
+    assert.equal(res.ips.length, 1);
+    assert.equal(res.ips[0].status, 'clean');
+    assert.equal(res.findings.length, 0);
+    assert.equal(res.summary.cleanCount, 1);
+  });
+
+  // PHASE 7 - TEST 2: Malicious IP address enrichment
+  await runTest('PHASE 7 - TEST 2: Malicious IP address enrichment', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        ips: { '198.51.100.2': { status: THREAT_VERDICTS.MALICIOUS, score: 98, evidence: { source: 'AbuseIPDB Botnet' } } }
+      }
+    });
+    const res = await enrichThreatIntel({ ips: ['198.51.100.2'] }, { provider: mock });
+    assert.equal(res.ips[0].status, 'malicious');
+    assert.equal(res.findings.length, 1);
+    assert.equal(res.findings[0].id, 'IP_REPUTATION_MALICIOUS');
+    assert.equal(res.summary.maliciousCount, 1);
+  });
+
+  // PHASE 7 - TEST 3: Suspicious IP address enrichment
+  await runTest('PHASE 7 - TEST 3: Suspicious IP address enrichment', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        ips: { '198.51.100.3': { status: THREAT_VERDICTS.SUSPICIOUS, score: 55, evidence: { source: 'Spamhaus Drop' } } }
+      }
+    });
+    const res = await enrichThreatIntel({ ips: ['198.51.100.3'] }, { provider: mock });
+    assert.equal(res.ips[0].status, 'suspicious');
+    assert.equal(res.findings.length, 1);
+    assert.equal(res.findings[0].id, 'IP_REPUTATION_SUSPICIOUS');
+    assert.equal(res.summary.suspiciousCount, 1);
+  });
+
+  // PHASE 7 - TEST 4: Unknown IP address does not penalize score
+  await runTest('PHASE 7 - TEST 4: Unknown IP address does not penalize score', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        ips: { '198.51.100.4': { status: THREAT_VERDICTS.UNKNOWN, score: 0 } }
+      }
+    });
+    const res = await enrichThreatIntel({ ips: ['198.51.100.4'] }, { provider: mock });
+    assert.equal(res.ips[0].status, 'unknown');
+    assert.equal(res.findings.length, 0);
+    assert.equal(res.summary.unknownCount, 1);
+  });
+
+  // PHASE 7 - TEST 5: Unavailable IP lookup handled without false malicious verdict
+  await runTest('PHASE 7 - TEST 5: Unavailable IP lookup handled without false malicious verdict', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        ips: { '198.51.100.5': { status: THREAT_VERDICTS.UNAVAILABLE } }
+      }
+    });
+    const res = await enrichThreatIntel({ ips: ['198.51.100.5'] }, { provider: mock });
+    assert.equal(res.ips[0].status, 'unavailable');
+    assert.equal(res.findings.length, 0);
+  });
+
+  // PHASE 7 - TEST 6: RFC 1918 Private IP addresses skipped from external lookups
+  await runTest('PHASE 7 - TEST 6: RFC 1918 Private IP addresses skipped from external lookups', async () => {
+    const mock = new MockThreatIntelProvider();
+    const res = await enrichThreatIntel({
+      ips: ['10.0.0.1', '172.16.5.10', '192.168.1.100']
+    }, { provider: mock });
+    assert.equal(res.ips.length, 3);
+    for (const item of res.ips) {
+      assert.equal(item.status, 'skipped');
+      assert.equal(item.isPrivate, true);
+      assert.equal(item.ipType, 'private');
+    }
+    assert.equal(res.summary.skippedCount, 3);
+    assert.equal(mock.queryHistory.length, 0); // Preserved privacy: zero provider queries
+  });
+
+  // PHASE 7 - TEST 7: Loopback and link-local IPs skipped from external lookups
+  await runTest('PHASE 7 - TEST 7: Loopback and link-local IPs skipped from external lookups', async () => {
+    const mock = new MockThreatIntelProvider();
+    const res = await enrichThreatIntel({
+      ips: ['127.0.0.1', '169.254.1.1', '0.0.0.0']
+    }, { provider: mock });
+    assert.equal(res.ips.length, 3);
+    assert.equal(res.ips[0].ipType, 'loopback');
+    assert.equal(res.ips[1].ipType, 'link-local');
+    assert.equal(res.ips[2].ipType, 'unspecified');
+    assert.equal(mock.queryHistory.length, 0); // No queries made
+  });
+
+  // PHASE 7 - TEST 8: Malicious URL enrichment and finding generation
+  await runTest('PHASE 7 - TEST 8: Malicious URL enrichment and finding generation', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        urls: { 'https://malicious-login.com/auth': { status: THREAT_VERDICTS.MALICIOUS, score: 95, evidence: { source: 'PhishTank' } } }
+      }
+    });
+    const res = await enrichThreatIntel({ urls: ['https://malicious-login.com/auth'] }, { provider: mock });
+    assert.equal(res.urls[0].status, 'malicious');
+    assert.equal(res.findings.length, 1);
+    assert.equal(res.findings[0].id, 'URL_REPUTATION_MALICIOUS');
+    assert.equal(res.summary.maliciousCount, 1);
+  });
+
+  // PHASE 7 - TEST 9: Suspicious URL enrichment and finding generation
+  await runTest('PHASE 7 - TEST 9: Suspicious URL enrichment and finding generation', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        urls: { 'https://suspicious-shortener.xyz/promo': { status: THREAT_VERDICTS.SUSPICIOUS, score: 60 } }
+      }
+    });
+    const res = await enrichThreatIntel({ urls: ['https://suspicious-shortener.xyz/promo'] }, { provider: mock });
+    assert.equal(res.urls[0].status, 'suspicious');
+    assert.equal(res.findings.length, 1);
+    assert.equal(res.findings[0].id, 'URL_REPUTATION_SUSPICIOUS');
+    assert.equal(res.summary.suspiciousCount, 1);
+  });
+
+  // PHASE 7 - TEST 10: Clean URL contributes no malicious findings
+  await runTest('PHASE 7 - TEST 10: Clean URL contributes no malicious findings', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        urls: { 'https://trusted-site.org/docs': { status: THREAT_VERDICTS.CLEAN, score: 0 } }
+      }
+    });
+    const res = await enrichThreatIntel({ urls: ['https://trusted-site.org/docs'] }, { provider: mock });
+    assert.equal(res.urls[0].status, 'clean');
+    assert.equal(res.findings.length, 0);
+    assert.equal(res.summary.cleanCount, 1);
+  });
+
+  // PHASE 7 - TEST 11: Unknown URL does not generate malicious findings
+  await runTest('PHASE 7 - TEST 11: Unknown URL does not generate malicious findings', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        urls: { 'https://newly-seen.co/page': { status: THREAT_VERDICTS.UNKNOWN, score: 0 } }
+      }
+    });
+    const res = await enrichThreatIntel({ urls: ['https://newly-seen.co/page'] }, { provider: mock });
+    assert.equal(res.urls[0].status, 'unknown');
+    assert.equal(res.findings.length, 0);
+  });
+
+  // PHASE 7 - TEST 12: Malicious Domain enrichment and finding generation
+  await runTest('PHASE 7 - TEST 12: Malicious Domain enrichment and finding generation', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        domains: { 'phishing-credential-harvest.com': { status: THREAT_VERDICTS.MALICIOUS, score: 99, evidence: { source: 'ThreatStream' } } }
+      }
+    });
+    const res = await enrichThreatIntel({ domains: ['phishing-credential-harvest.com'] }, { provider: mock });
+    assert.equal(res.domains[0].status, 'malicious');
+    assert.equal(res.findings.length, 1);
+    assert.equal(res.findings[0].id, 'DOMAIN_REPUTATION_MALICIOUS');
+    assert.equal(res.summary.maliciousCount, 1);
+  });
+
+  // PHASE 7 - TEST 13: Suspicious Domain enrichment and finding generation
+  await runTest('PHASE 7 - TEST 13: Suspicious Domain enrichment and finding generation', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        domains: { 'unconfirmed-gateway.info': { status: THREAT_VERDICTS.SUSPICIOUS, score: 50 } }
+      }
+    });
+    const res = await enrichThreatIntel({ domains: ['unconfirmed-gateway.info'] }, { provider: mock });
+    assert.equal(res.domains[0].status, 'suspicious');
+    assert.equal(res.findings.length, 1);
+    assert.equal(res.findings[0].id, 'DOMAIN_REPUTATION_SUSPICIOUS');
+    assert.equal(res.summary.suspiciousCount, 1);
+  });
+
+  // PHASE 7 - TEST 14: Clean Domain generates no risk findings
+  await runTest('PHASE 7 - TEST 14: Clean Domain generates no risk findings', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        domains: { 'verified-domain.com': { status: THREAT_VERDICTS.CLEAN, score: 0 } }
+      }
+    });
+    const res = await enrichThreatIntel({ domains: ['verified-domain.com'] }, { provider: mock });
+    assert.equal(res.domains[0].status, 'clean');
+    assert.equal(res.findings.length, 0);
+    assert.equal(res.summary.cleanCount, 1);
+  });
+
+  // PHASE 7 - TEST 15: Provider timeout handled gracefully without crashing
+  await runTest('PHASE 7 - TEST 15: Provider timeout handled gracefully without crashing', async () => {
+    const mock = new MockThreatIntelProvider({
+      simulateTimeout: true
+    });
+    const res = await enrichThreatIntel({ ips: ['198.51.100.10'] }, { provider: mock });
+    assert.equal(res.status, 'partial');
+    assert.equal(res.ips[0].status, THREAT_VERDICTS.ERROR);
+    assert.equal(res.findings.length, 0); // Errors do NOT generate risk findings
+  });
+
+  // PHASE 7 - TEST 16: Provider HTTP 500 error handled gracefully
+  await runTest('PHASE 7 - TEST 16: Provider HTTP 500 error handled gracefully', async () => {
+    const mock = new MockThreatIntelProvider({
+      simulateHttpError: 500
+    });
+    const res = await enrichThreatIntel({ domains: ['test-error.com'] }, { provider: mock });
+    assert.equal(res.domains[0].status, THREAT_VERDICTS.ERROR);
+    assert.equal(res.findings.length, 0); // HTTP 500 does NOT generate risk findings
+  });
+
+  // PHASE 7 - TEST 17: Provider rate limiting sets operational finding with 0 risk points
+  await runTest('PHASE 7 - TEST 17: Provider rate limiting sets operational finding with 0 risk points', async () => {
+    const mock = new MockThreatIntelProvider({
+      forceStatus: THREAT_VERDICTS.RATE_LIMITED
+    });
+    const res = await enrichThreatIntel({ urls: ['https://rate-limit-test.org'] }, { provider: mock });
+    assert.equal(res.status, 'rate_limited');
+    assert.ok(res.findings.some((f) => f.id === 'THREAT_INTEL_RATE_LIMITED'));
+    
+    // Evaluate in risk engine: must produce 0 points
+    const dummyEmail = { threatIntel: res };
+    const risk = analyzeRisk(dummyEmail);
+    assert.equal(risk.totalScore, 0);
+  });
+
+  // PHASE 7 - TEST 18: Missing API key reports unavailable status with 0 risk points
+  await runTest('PHASE 7 - TEST 18: Missing API key reports unavailable status with 0 risk points', async () => {
+    const mock = new MockThreatIntelProvider({
+      missingApiKey: true
+    });
+    const res = await enrichThreatIntel({ ips: ['198.51.100.20'] }, { provider: mock });
+    assert.equal(res.status, 'unavailable');
+    assert.ok(res.findings.some((f) => f.id === 'THREAT_INTEL_UNAVAILABLE'));
+
+    const dummyEmail = { threatIntel: res };
+    const risk = analyzeRisk(dummyEmail);
+    assert.equal(risk.totalScore, 0);
+  });
+
+  // PHASE 7 - TEST 19: Duplicate identical artifacts queried and scored only once
+  await runTest('PHASE 7 - TEST 19: Duplicate identical artifacts queried and scored only once', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        urls: { 'https://dup-phish.com/login': { status: THREAT_VERDICTS.MALICIOUS, score: 90 } }
+      }
+    });
+    // Pass same URL 4 times
+    const res = await enrichThreatIntel({
+      urls: [
+        'https://dup-phish.com/login',
+        'https://dup-phish.com/login',
+        { normalized: 'https://dup-phish.com/login' },
+        'https://dup-phish.com/login'
+      ]
+    }, { provider: mock });
+
+    assert.equal(res.urls.length, 1);
+    assert.equal(mock.queryHistory.length, 1); // Queried exactly once
+    assert.equal(res.findings.length, 1);
+
+    const dummyEmail = { threatIntel: res };
+    const risk = analyzeRisk(dummyEmail);
+    assert.equal(risk.totalScore, 25); // exactly 1 contribution (+25), not multiplied by 4
+  });
+
+  // PHASE 7 - TEST 20: Deterministic risk contributions for malicious and suspicious hits
+  await runTest('PHASE 7 - TEST 20: Deterministic risk contributions for malicious and suspicious hits', async () => {
+    const mock = new MockThreatIntelProvider({
+      fixtures: {
+        ips: { '198.51.100.50': { status: THREAT_VERDICTS.MALICIOUS } },
+        urls: { 'https://phish.org/bank': { status: THREAT_VERDICTS.SUSPICIOUS } },
+        domains: { 'malicious-domain.com': { status: THREAT_VERDICTS.MALICIOUS } }
+      }
+    });
+    const res = await enrichThreatIntel({
+      ips: ['198.51.100.50'],
+      urls: ['https://phish.org/bank'],
+      domains: ['malicious-domain.com']
+    }, { provider: mock });
+
+    assert.equal(res.findings.length, 3);
+    const dummyEmail = { threatIntel: res };
+    const risk = analyzeRisk(dummyEmail);
+
+    // IP malicious (+25) + URL suspicious (+12) + Domain malicious (+25) = 62
+    assert.equal(risk.totalScore, 62);
+    assert.equal(risk.level, 'HIGH');
+    assert.equal(risk.summary.categories.threat_intelligence, 62);
+  });
+
+  // PHASE 7 - TEST 21: VirusTotal and AbuseIPDB adapter response normalization
+  await runTest('PHASE 7 - TEST 21: VirusTotal and AbuseIPDB adapter response normalization', () => {
+    const vt = new VirusTotalAdapter({ apiKey: 'dummy_key' });
+    const vtClean = vt.normalizeIpResponse({ data: { attributes: { last_analysis_stats: { malicious: 0, suspicious: 0, harmless: 70 } } } }, '1.1.1.1');
+    assert.equal(vtClean.status, THREAT_VERDICTS.CLEAN);
+
+    const vtMalicious = vt.normalizeIpResponse({ data: { attributes: { last_analysis_stats: { malicious: 5, suspicious: 2 } } } }, '1.2.3.4');
+    assert.equal(vtMalicious.status, THREAT_VERDICTS.MALICIOUS);
+
+    const abuse = new AbuseIpdbAdapter({ apiKey: 'dummy_key' });
+    const abuseClean = abuse.normalizeResponse({ data: { abuseConfidenceScore: 0, totalReports: 0 } }, '1.1.1.1');
+    assert.equal(abuseClean.status, THREAT_VERDICTS.CLEAN);
+
+    const abuseMalicious = abuse.normalizeResponse({ data: { abuseConfidenceScore: 85, totalReports: 25 } }, '5.6.7.8');
+    assert.equal(abuseMalicious.status, THREAT_VERDICTS.MALICIOUS);
+  });
+
+  // PHASE 7 - TEST 22: Malformed or unparseable provider response handled gracefully
+  await runTest('PHASE 7 - TEST 22: Malformed or unparseable provider response handled gracefully', () => {
+    const vt = new VirusTotalAdapter({ apiKey: 'dummy_key' });
+    const normalized = vt.normalizeIpResponse(null, '8.8.8.8');
+    assert.equal(normalized.status, THREAT_VERDICTS.UNKNOWN);
+
+    const abuse = new AbuseIpdbAdapter({ apiKey: 'dummy_key' });
+    const abuseNorm = abuse.normalizeResponse({ invalid: 'data' }, '8.8.8.8');
+    assert.equal(abuseNorm.status, THREAT_VERDICTS.UNKNOWN);
+  });
+
+  // PHASE 7 - TEST 23: Multiple providers preserve individual observations on conflict
+  await runTest('PHASE 7 - TEST 23: Multiple providers preserve individual observations on conflict', async () => {
+    const providerA = new MockThreatIntelProvider({
+      fixtures: { ips: { '198.51.100.99': { status: THREAT_VERDICTS.MALICIOUS, score: 90 } } }
+    });
+    providerA.name = 'Provider_A';
+
+    const providerB = new MockThreatIntelProvider({
+      fixtures: { ips: { '198.51.100.99': { status: THREAT_VERDICTS.CLEAN, score: 0 } } }
+    });
+    providerB.name = 'Provider_B';
+
+    const res = await enrichThreatIntel({ ips: ['198.51.100.99'] }, { providers: [providerA, providerB] });
+    assert.equal(res.ips[0].providerResults.length, 2);
+    assert.equal(res.ips[0].providerResults[0].status, THREAT_VERDICTS.MALICIOUS);
+    assert.equal(res.ips[0].providerResults[1].status, THREAT_VERDICTS.CLEAN);
+    // Preserves conflict without losing evidence
+    assert.equal(res.ips[0].status, THREAT_VERDICTS.MALICIOUS);
+  });
+
+  // PHASE 7 - TEST 24: Risk score clamping ensures totalScore does not exceed 100
+  await runTest('PHASE 7 - TEST 24: Risk score clamping ensures totalScore does not exceed 100', () => {
+    const dummyEmail = {
+      threatIntel: {
+        findings: [
+          { id: 'IP_REPUTATION_MALICIOUS', artifact: '1.1.1.1' }, // 25
+          { id: 'IP_REPUTATION_MALICIOUS', artifact: '2.2.2.2' }, // 25
+          { id: 'URL_REPUTATION_MALICIOUS', artifact: 'https://bad1.com' }, // 25
+          { id: 'URL_REPUTATION_MALICIOUS', artifact: 'https://bad2.com' }, // 25
+          { id: 'DOMAIN_REPUTATION_MALICIOUS', artifact: 'baddomain.org' } // 25 -> raw 125
+        ]
+      }
+    };
+    const risk = analyzeRisk(dummyEmail);
+    assert.equal(risk.rawScore, 125);
+    assert.equal(risk.totalScore, 100); // Clamped strictly to 100
+    assert.equal(risk.level, 'CRITICAL');
+  });
+
+  // PHASE 7 - TEST 25: POST /api/threat-intel validates input and enriches safely
+  await runTest('PHASE 7 - TEST 25: POST /api/threat-intel validates input and enriches safely', async () => {
+    // 1. Rejects non-JSON or missing body
+    const emptyReq = new Request('http://localhost:3000/api/threat-intel', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    const emptyRes = await threatIntelRoute(emptyReq);
+    assert.equal(emptyRes.status, 400);
+
+    // 2. Accepts valid artifacts and runs mock enrichment
+    const validReq = new Request('http://localhost:3000/api/threat-intel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'mock',
+        artifacts: {
+          ips: ['192.168.1.1', '198.51.100.1'],
+          urls: ['https://example.com/test'],
+          domains: ['example.com']
+        }
+      })
+    });
+    const validRes = await threatIntelRoute(validReq);
+    assert.equal(validRes.status, 200);
+    const payload = await validRes.json();
+    assert.equal(payload.success, true);
+    assert.equal(payload.data.ips.length, 2);
+    assert.equal(payload.data.ips[0].isPrivate, true); // 192.168.1.1 is private
+  });
+
+  // PHASE 7 - TEST 26: Full pipeline integration with Phase 1–6 output
+  await runTest('PHASE 7 - TEST 26: Full pipeline integration with Phase 1–6 output', () => {
+    const raw = [
+      'From: security@paypal.com',
+      'To: victim@example.com',
+      'Reply-To: phisher@badsite.com',
+      'Subject: Security Alert: Account Suspended',
+      'Received: from mail.badsite.com (unknown [198.51.100.77]) by mx.example.com; Sat, 12 Sep 2026 12:00:00 +0000',
+      'Authentication-Results: mx.example.com; dmarc=fail (p=reject) header.from=paypal.com',
+      'Content-Type: text/plain; charset="UTF-8"',
+      '',
+      'Please verify your account immediately at https://paypal-security-update.fake/login'
+    ].join('\r\n');
+
+    const parsed = parseRawEmail(raw);
+    assert.equal(parsed.success, true);
+    // Baseline risk before threat intelligence has DMARC fail (+20) and From vs Reply-To (+15)
+    assert.equal(parsed.data.risk.totalScore, 35);
+    assert.equal(parsed.data.risk.level, 'MEDIUM');
+    assert.equal(parsed.data.threatIntel.status, 'unavailable');
+    assert.equal(parsed.data.threatIntel.summary.maliciousCount, 0);
   });
 
   // ---------------------------------------------------------------------------

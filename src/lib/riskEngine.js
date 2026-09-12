@@ -50,7 +50,19 @@ export const DETERMINISTIC_RISK_POLICY = Object.freeze({
     // 3. Header Transmission Findings
     NEGATIVE_TRANSMISSION_LATENCY: 10,
     RECEIVED_HOP_HOST_MISMATCH: 10,
-    RECEIVED_TIMESTAMP_PARSE_ERROR: 5
+    RECEIVED_TIMESTAMP_PARSE_ERROR: 5,
+
+    // 4. Threat Intelligence Reputation Findings (Phase 7 Enrichment)
+    IP_REPUTATION_MALICIOUS: 25,
+    IP_REPUTATION_SUSPICIOUS: 12,
+    URL_REPUTATION_MALICIOUS: 25,
+    URL_REPUTATION_SUSPICIOUS: 12,
+    DOMAIN_REPUTATION_MALICIOUS: 25,
+    DOMAIN_REPUTATION_SUSPICIOUS: 12,
+    // Operational findings carry 0 points (Missing ≠ Malicious, Error ≠ Malicious)
+    THREAT_INTEL_UNAVAILABLE: 0,
+    THREAT_INTEL_RATE_LIMITED: 0,
+    THREAT_INTEL_PROVIDER_ERROR: 0
   }
 });
 
@@ -347,6 +359,52 @@ function evaluateTransmissionFindings(transmissionFindings = [], seenDedupKeys) 
 }
 
 /**
+ * Evaluates Threat Intelligence Findings from Phase 7.
+ * Confirmed malicious findings contribute +25 pts.
+ * Suspicious findings contribute +12 pts.
+ * Operational, clean, unknown, or skipped findings contribute 0 pts (Missing ≠ Malicious).
+ * 
+ * @param {Array<object>} threatIntelFindings 
+ * @param {Set<string>} seenDedupKeys 
+ * @returns {Array<object>} List of risk contributions
+ */
+function evaluateThreatIntelFindings(threatIntelFindings = [], seenDedupKeys) {
+  const contributions = [];
+
+  for (const f of threatIntelFindings) {
+    if (!f || !f.id) continue;
+
+    const points = DETERMINISTIC_RISK_POLICY.points[f.id] || 0;
+    if (points <= 0) continue; // Operational status or clean findings contribute 0 points
+
+    const artifactKey = f.artifact || f.evidence?.artifact || '';
+    const dedupKey = `threat_intel:${f.id}:${artifactKey}`;
+
+    if (!seenDedupKeys.has(dedupKey)) {
+      seenDedupKeys.add(dedupKey);
+
+      contributions.push({
+        id: f.id,
+        category: 'threat_intelligence',
+        points,
+        reason: f.message || `Threat intelligence reported ${f.id} for artifact "${artifactKey}".`,
+        evidence: {
+          artifact: artifactKey,
+          provider: f.provider || 'unknown',
+          providerVerdict: f.status || null,
+          confidence: f.evidence?.confidence ?? null,
+          source: f.evidence?.source || null,
+          checkedAt: f.evidence?.checkedAt || null,
+          rawEvidence: f.evidence || null
+        }
+      });
+    }
+  }
+
+  return contributions;
+}
+
+/**
  * Deterministic Master Risk Engine Function.
  * Consumes the canonical normalized email object and produces the canonical data.risk model.
  * 
@@ -366,7 +424,8 @@ export function analyzeRisk(emailData) {
         categories: {
           authentication: 0,
           sender_identity: 0,
-          transmission: 0
+          transmission: 0,
+          threat_intelligence: 0
         }
       },
       methodology: {
@@ -402,11 +461,16 @@ export function analyzeRisk(emailData) {
   const transmissionFindings = emailData.transmission?.findings || [];
   allContributions.push(...evaluateTransmissionFindings(transmissionFindings, seenDedupKeys));
 
+  // 4. Threat Intelligence Reputation Findings (Phase 7 Enrichment)
+  const threatIntelFindings = emailData.threatIntel?.findings || [];
+  allContributions.push(...evaluateThreatIntelFindings(threatIntelFindings, seenDedupKeys));
+
   // Calculate category totals
   const categorySums = {
     authentication: 0,
     sender_identity: 0,
-    transmission: 0
+    transmission: 0,
+    threat_intelligence: 0
   };
 
   let rawScore = 0;

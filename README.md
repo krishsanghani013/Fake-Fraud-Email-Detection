@@ -35,29 +35,37 @@ A standard-compliant, zero-retention RFC 5322 email ingestion, validation, and f
     ▼     ▼     ▼       ▼     ▼     ▼             ▼             ▼     ▼     ▼
   URLs   IPs  Domains  SPF   DKIM  DMARC   CONSISTENCY MATRIX  HOPS LATENCY ANOMALIES
 (Norm.) (v4/6) (Sub.)         │            & FINDINGS LOG     (0->N) (Sec.) (Negative/
-                              ▼            (From vs Reply-To,                Mismatch)
-                             ARC            Return-Path, SPF,
-                                            DKIM, DMARC)
-                             │
-                             ▼
-          CANONICAL OBJECT WITH ALL FORENSIC LAYERS
-                             │
-                             ▼
-               ┌───────────────────────────┐
-               │ DETERMINISTIC RISK ENGINE │
-               │      (riskEngine.js)      │
-               └─────────────┬─────────────┘
-                             │
-            ┌────────────────┼────────────────┐
-            ▼                ▼                ▼
-     CONTRIBUTIONS      TOTAL SCORE       RISK LEVEL
-   (Evidence-Backed)      (0-100)      (LOW/MED/HIGH/CRIT)
-                             │
-                             ▼
-          CANONICAL DATA WITH RISK FORENSICS (data.risk)
-                             │
-                             ▼
-           UI INSPECTION VIEW & POST /api/parse-eml
+          │                   ▼            (From vs Reply-To,                Mismatch)
+          │                  ARC            Return-Path, SPF,
+          │                                 DKIM, DMARC)
+          ▼                                       │
+┌───────────────────────────┐                     │
+│ THREAT INTEL ENRICHMENT   │                     │
+│   (threatIntel.js)        │                     │
+│  - Privacy: Skip RFC 1918 │                     │
+│  - Providers: VT/AbuseIPDB│                     │
+│  - IP/URL/Domain Reput.   │                     │
+└─────────────┬─────────────┘                     │
+              │                                   │
+              ▼                                   ▼
+           CANONICAL OBJECT WITH ALL FORENSIC LAYERS (data.threatIntel)
+                              │
+                              ▼
+                ┌───────────────────────────┐
+                │ DETERMINISTIC RISK ENGINE │
+                │      (riskEngine.js)      │
+                └─────────────┬─────────────┘
+                              │
+             ┌────────────────┼────────────────┐
+             ▼                ▼                ▼
+      CONTRIBUTIONS      TOTAL SCORE       RISK LEVEL
+    (Evidence-Backed)      (0-100)      (LOW/MED/HIGH/CRIT)
+                              │
+                              ▼
+           CANONICAL DATA WITH RISK FORENSICS (data.risk)
+                              │
+                              ▼
+        UI INSPECTION VIEW & POST /api/parse-eml & POST /api/threat-intel
 ```
 
 ---
@@ -546,4 +554,66 @@ npm test
 95. **TEST 20 — Total score equals sum of contributions**: Multi-finding combination yields exact cumulative score and HIGH level.
 96. **TEST 21 — Deterministic risk level thresholds**: Verifies boundaries for LOW (0-19), MEDIUM (20-49), HIGH (50-79), and CRITICAL (80-100).
 97. **TEST 22 — Missing authentication/identity data handled without false points**: Sparse input yields 0 points without false assumptions.
+
+#### Phase 7: Threat Intelligence & Reputation Enrichment (Tests 1–26)
+98. **TEST 1 — Clean IP address enrichment**: Provider reports clean, assigns 0 risk points.
+99. **TEST 2 — Malicious IP address enrichment**: Provider reports malicious, generates `IP_REPUTATION_MALICIOUS` (+25 pts).
+100. **TEST 3 — Suspicious IP address enrichment**: Provider reports suspicious, generates `IP_REPUTATION_SUSPICIOUS` (+12 pts).
+101. **TEST 4 — Unknown IP address does not penalize score**: Unknown reputation contributes 0 risk points (Unknown ≠ Malicious).
+102. **TEST 5 — Unavailable IP lookup handled safely**: Unavailable lookup contributes 0 risk points (Unavailable ≠ Malicious).
+103. **TEST 6 — RFC 1918 Private IP addresses skipped**: Private subnets (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) marked as skipped and never queried externally.
+104. **TEST 7 — Loopback and link-local IPs skipped**: Addresses 127.0.0.1, 169.254.1.1, and 0.0.0.0 preserved locally without external lookups.
+105. **TEST 8 — Malicious URL enrichment**: Malicious URL generates `URL_REPUTATION_MALICIOUS` (+25 pts).
+106. **TEST 9 — Suspicious URL enrichment**: Suspicious URL generates `URL_REPUTATION_SUSPICIOUS` (+12 pts).
+107. **TEST 10 — Clean URL contributes no malicious findings**: Clean URL contributes 0 risk points.
+108. **TEST 11 — Unknown URL does not generate findings**: Unknown URL produces 0 risk points.
+109. **TEST 12 — Malicious Domain enrichment**: Malicious domain generates `DOMAIN_REPUTATION_MALICIOUS` (+25 pts).
+110. **TEST 13 — Suspicious Domain enrichment**: Suspicious domain generates `DOMAIN_REPUTATION_SUSPICIOUS` (+12 pts).
+111. **TEST 14 — Clean Domain generates no risk findings**: Clean domain contributes 0 risk points.
+112. **TEST 15 — Provider timeout handled gracefully**: Request timeout sets status to partial/error without throwing or crashing forensic analysis.
+113. **TEST 16 — Provider HTTP 500 error handled gracefully**: Server errors from provider handled without crashing or altering baseline risk.
+114. **TEST 17 — Provider rate limiting sets operational finding**: 429 status emits `THREAT_INTEL_RATE_LIMITED` and yields 0 risk points.
+115. **TEST 18 — Missing API key reports unavailable status**: Missing provider API keys set `THREAT_INTEL_UNAVAILABLE` with 0 risk points.
+116. **TEST 19 — Duplicate identical artifacts queried and scored once**: Deduplication guarantees identical URLs/IPs are queried only once and scored once (+25).
+117. **TEST 20 — Deterministic risk contributions for malicious and suspicious hits**: Multi-hit combination (IP +25, URL +12, Domain +25) evaluates correctly to 62 points (HIGH).
+118. **TEST 21 — VirusTotal and AbuseIPDB adapter response normalization**: Adapters normalize third-party API payloads into canonical `THREAT_VERDICTS`.
+119. **TEST 22 — Malformed or unparseable provider response handled gracefully**: Corrupted response bodies normalize safely to `UNKNOWN`.
+120. **TEST 23 — Multiple providers preserve individual observations on conflict**: Multi-provider consensus preserves each provider's observation without data loss.
+121. **TEST 24 — Risk score clamping ensures totalScore does not exceed 100**: Cumulative risk contributions exceeding 100 clamp strictly to 100.
+122. **TEST 25 — POST /api/threat-intel endpoint validation and safe enrichment**: Rejects invalid payloads with HTTP 400 and processes valid artifacts safely.
+123. **TEST 26 — Full pipeline integration with Phase 1–6 output**: Confirms seamless end-to-end execution across RFC 5322 parsing, artifacts, authentication, identity, transmission, and threat intel.
+
+---
+
+## 3. Phase 7 Threat Intelligence Architecture
+
+### Core Forensic Principle
+> **Threat intelligence is external reputation enrichment and does NOT independently prove that an email is fraudulent.**
+>
+> An external provider's report is an external observation. A provider error, timeout, missing key, or rate limit must **never** increase risk (Missing ≠ Malicious, Error ≠ Malicious).
+
+### Supported Provider Configuration
+Threat intelligence providers are abstracted via `BaseThreatIntelProvider` in `src/lib/threat-intel/provider.js`.
+
+- **Mock Provider (`mock`)**: Fully offline deterministic provider for CI/CD and testing.
+- **VirusTotal v3 (`virustotal`)**: Server-side URL, IP, and domain reputation analysis.
+- **AbuseIPDB v2 (`abuseipdb`)**: Server-side IP abuse confidence and attack reporting.
+
+Configure credentials in `.env.local` (see `.env.example`):
+```bash
+THREAT_INTEL_PROVIDER=mock       # mock | virustotal | abuseipdb
+VIRUSTOTAL_API_KEY=your_key_here
+ABUSEIPDB_API_KEY=your_key_here
+THREAT_INTEL_TIMEOUT_MS=5000
+```
+
+### Privacy & Network Protection Policy
+1. **RFC 1918 Preservation**: Non-public IP addresses (Private `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, Loopback `127.0.0.0/8`, Link-Local `169.254.0.0/16`, and Unspecified `0.0.0.0`) are classified locally using `classifyIp` and marked `skipped`. They are **never sent to external third parties**.
+2. **Minimal Artifact Exposure**: Only extracted IP addresses, normalized URLs, and domain names are sent. Raw email bodies, full headers, attachments, and recipient identities are **never shared**.
+
+### Security & Anti-SSRF Rules
+- **Zero Execution Policy**: Target URLs in emails are **never navigated to, fetched, or rendered**. Lookups use passive API database queries.
+- **No Network Reconnaissance**: No arbitrary DNS lookups, reverse DNS, WHOIS queries, or port scans are executed.
+- **Server-Side Guard**: All API keys and provider requests execute strictly server-side (`POST /api/threat-intel`). Client browsers never make direct provider calls.
+
 
