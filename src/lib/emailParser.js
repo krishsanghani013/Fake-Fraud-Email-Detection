@@ -7,6 +7,7 @@
 
 import { extractArtifacts } from './emailArtifacts.js';
 import { extractAuthenticationEvidence } from './emailAuth.js';
+import { analyzeSenderIdentity } from './senderIdentity.js';
 
 
 /**
@@ -444,6 +445,9 @@ export function parseRawEmail(rawInput) {
         }
       })
     };
+
+    // Phase 4: Sender Identity & Header Consistency Forensics
+    normalizedEmail.senderIdentity = analyzeSenderIdentity(normalizedEmail);
 
     return {
       success: true,

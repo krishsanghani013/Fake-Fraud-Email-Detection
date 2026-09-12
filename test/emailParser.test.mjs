@@ -17,10 +17,17 @@ import {
   parseArcHeaders,
   extractAuthenticationEvidence
 } from '../src/lib/emailAuth.js';
+import {
+  compareDomains,
+  normalizeDomain,
+  extractEmailAndDomain,
+  extractSenderIdentities,
+  analyzeSenderIdentity
+} from '../src/lib/senderIdentity.js';
 import { POST } from '../src/app/api/parse-eml/route.js';
 
 console.log('====================================================');
-console.log('RUNNING PHASE 1, 2 & 3 FORENSIC TEST SUITE');
+console.log('RUNNING PHASE 1, 2, 3 & 4 FORENSIC TEST SUITE');
 console.log('====================================================\n');
 
 let passedTests = 0;
@@ -910,6 +917,386 @@ async function runAll() {
     assert.equal(result.data.authentication.authenticationResults.length, 1);
     assert.equal(result.data.authentication.receivedSpf.length, 1);
     assert.equal(result.data.authentication.dkim.signatures.length, 1);
+  });
+
+  // ===========================================================================
+  // PHASE 4: SENDER IDENTITY & HEADER CONSISTENCY TESTS
+  // ===========================================================================
+  console.log('\n--- PHASE 4: SENDER IDENTITY & HEADER CONSISTENCY TESTS ---');
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 1: From and Reply-To same domain
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 1: From and Reply-To same domain', () => {
+    const raw = [
+      'From: alice@example.com',
+      'Reply-To: support@example.com',
+      'Subject: Same domain test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    assert.ok(si);
+    const rtComp = si.comparisons.find((c) => c.type === 'from_vs_reply_to');
+    assert.ok(rtComp);
+    assert.equal(rtComp.status, 'match');
+    assert.equal(si.findings.some((f) => f.id === 'FROM_REPLY_TO_DOMAIN_MISMATCH'), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 2: From and Reply-To different domains
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 2: From and Reply-To different domains', () => {
+    const raw = [
+      'From: alice@example.com',
+      'Reply-To: support@evil.com',
+      'Subject: Mismatch domain test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const rtComp = si.comparisons.find((c) => c.type === 'from_vs_reply_to');
+    assert.ok(rtComp);
+    assert.equal(rtComp.status, 'mismatch');
+    const finding = si.findings.find((f) => f.id === 'FROM_REPLY_TO_DOMAIN_MISMATCH');
+    assert.ok(finding);
+    assert.equal(finding.sourceA.domain, 'example.com');
+    assert.equal(finding.sourceB.domain, 'evil.com');
+    assert.ok(finding.evidence.fromRaw);
+    assert.ok(finding.evidence.replyToRaw);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 3: From and Return-Path same domain
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 3: From and Return-Path same domain', () => {
+    const raw = [
+      'From: alice@example.com',
+      'Return-Path: <bounce@example.com>',
+      'Subject: Same Return-Path domain test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const rpComp = si.comparisons.find((c) => c.type === 'from_vs_return_path');
+    assert.ok(rpComp);
+    assert.equal(rpComp.status, 'match');
+    assert.equal(si.findings.some((f) => f.id === 'FROM_RETURN_PATH_DOMAIN_MISMATCH'), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 4: From and Return-Path different domains
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 4: From and Return-Path different domains', () => {
+    const raw = [
+      'From: alice@example.com',
+      'Return-Path: <bounce@mailer.example.net>',
+      'Subject: Different Return-Path domain test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const rpComp = si.comparisons.find((c) => c.type === 'from_vs_return_path');
+    assert.ok(rpComp);
+    assert.equal(rpComp.status, 'mismatch');
+    const finding = si.findings.find((f) => f.id === 'FROM_RETURN_PATH_DOMAIN_MISMATCH');
+    assert.ok(finding);
+    assert.equal(finding.sourceA.domain, 'example.com');
+    assert.equal(finding.sourceB.domain, 'mailer.example.net');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 5: From and SPF domain same
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 5: From and SPF domain same', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=example.com',
+      'From: user@example.com',
+      'Subject: SPF same domain test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const spfComp = si.comparisons.find((c) => c.type === 'from_vs_spf');
+    assert.ok(spfComp);
+    assert.equal(spfComp.status, 'match');
+    assert.equal(si.findings.some((f) => f.id === 'FROM_SPF_DOMAIN_MISMATCH'), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 6: From and SPF domain different
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 6: From and SPF domain different', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; spf=pass smtp.mailfrom=spoofed.net',
+      'From: user@example.com',
+      'Subject: SPF mismatch test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const spfComp = si.comparisons.find((c) => c.type === 'from_vs_spf');
+    assert.ok(spfComp);
+    assert.equal(spfComp.status, 'mismatch');
+    const finding = si.findings.find((f) => f.id === 'FROM_SPF_DOMAIN_MISMATCH');
+    assert.ok(finding);
+    assert.equal(finding.sourceA.domain, 'example.com');
+    assert.equal(finding.sourceB.domain, 'spoofed.net');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 7: From and DKIM d= same
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 7: From and DKIM d= same', () => {
+    const raw = [
+      'DKIM-Signature: v=1; a=rsa-sha256; d=example.com; s=s1; b=sig;',
+      'From: user@example.com',
+      'Subject: DKIM same domain test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const dkimComp = si.comparisons.find((c) => c.type === 'from_vs_dkim');
+    assert.ok(dkimComp);
+    assert.equal(dkimComp.status, 'match');
+    assert.equal(si.findings.some((f) => f.id === 'FROM_DKIM_DOMAIN_MISMATCH'), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 8: From and DKIM d= different
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 8: From and DKIM d= different', () => {
+    const raw = [
+      'DKIM-Signature: v=1; a=rsa-sha256; d=attacker-domain.com; s=s1; b=sig;',
+      'From: user@example.com',
+      'Subject: DKIM mismatch test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const dkimComp = si.comparisons.find((c) => c.type === 'from_vs_dkim');
+    assert.ok(dkimComp);
+    assert.equal(dkimComp.status, 'mismatch');
+    const finding = si.findings.find((f) => f.id === 'FROM_DKIM_DOMAIN_MISMATCH');
+    assert.ok(finding);
+    assert.equal(finding.sourceA.domain, 'example.com');
+    assert.equal(finding.sourceB.domain, 'attacker-domain.com');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 9: Multiple DKIM signatures evaluated independently
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 9: Multiple DKIM signatures evaluated independently', () => {
+    const raw = [
+      'DKIM-Signature: v=1; a=rsa-sha256; d=example.com; s=s1; b=sig1;',
+      'DKIM-Signature: v=1; a=rsa-sha256; d=thirdparty-mailer.net; s=s2; b=sig2;',
+      'From: user@example.com',
+      'Subject: Multiple DKIM signatures test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const dkimComps = si.comparisons.filter((c) => c.type === 'from_vs_dkim');
+    assert.equal(dkimComps.length, 2);
+    assert.equal(dkimComps.some((c) => c.status === 'match' && c.sourceB.domain === 'example.com'), true);
+    assert.equal(dkimComps.some((c) => c.status === 'mismatch' && c.sourceB.domain === 'thirdparty-mailer.net'), true);
+    const findings = si.findings.filter((f) => f.id === 'FROM_DKIM_DOMAIN_MISMATCH');
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].sourceB.domain, 'thirdparty-mailer.net');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 10: Multiple Reply-To addresses evaluated independently
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 10: Multiple Reply-To addresses evaluated independently', () => {
+    const raw = [
+      'From: alice@example.com',
+      'Reply-To: one@example.com, two@evil.com',
+      'Subject: Multiple Reply-To test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const si = result.data.senderIdentity;
+    const rtComps = si.comparisons.filter((c) => c.type === 'from_vs_reply_to');
+    assert.equal(rtComps.length, 2);
+    assert.equal(rtComps.some((c) => c.status === 'match' && c.sourceB.domain === 'example.com'), true);
+    assert.equal(rtComps.some((c) => c.status === 'mismatch' && c.sourceB.domain === 'evil.com'), true);
+    const findings = si.findings.filter((f) => f.id === 'FROM_REPLY_TO_DOMAIN_MISMATCH');
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].sourceB.domain, 'evil.com');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 11: Case-insensitive domain comparison
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 11: Case-insensitive domain comparison', () => {
+    assert.equal(compareDomains('Example.COM', 'example.com'), true);
+    assert.equal(compareDomains('Example.COM', 'different.com'), false);
+
+    const raw = [
+      'From: alice@Example.COM',
+      'Reply-To: support@example.com',
+      'Subject: Case test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const rtComp = result.data.senderIdentity.comparisons.find((c) => c.type === 'from_vs_reply_to');
+    assert.equal(rtComp.status, 'match');
+    assert.equal(result.data.senderIdentity.findings.length, 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 12: Trailing-dot domain normalization
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 12: Trailing-dot domain normalization', () => {
+    assert.equal(normalizeDomain('example.com.'), 'example.com');
+    assert.equal(compareDomains('example.com.', 'example.com'), true);
+
+    const raw = [
+      'From: alice@example.com.',
+      'Return-Path: <bounce@example.com>',
+      'Subject: Trailing dot test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const rpComp = result.data.senderIdentity.comparisons.find((c) => c.type === 'from_vs_return_path');
+    assert.equal(rpComp.status, 'match');
+    assert.equal(result.data.senderIdentity.findings.length, 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 13: Subdomain mismatch (exact-domain rule)
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 13: Subdomain mismatch (exact-domain rule)', () => {
+    assert.equal(compareDomains('mail.example.com', 'example.com'), false);
+    assert.equal(compareDomains('evil-example.com', 'example.com'), false);
+
+    const raw = [
+      'From: alice@mail.example.com',
+      'Reply-To: support@example.com',
+      'Subject: Subdomain exact match test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const rtComp = result.data.senderIdentity.comparisons.find((c) => c.type === 'from_vs_reply_to');
+    assert.equal(rtComp.status, 'mismatch');
+    const finding = result.data.senderIdentity.findings.find((f) => f.id === 'FROM_REPLY_TO_DOMAIN_MISMATCH');
+    assert.ok(finding);
+    assert.equal(finding.sourceA.domain, 'mail.example.com');
+    assert.equal(finding.sourceB.domain, 'example.com');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 14: Missing SPF domain recorded as unavailable, NOT mismatch
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 14: Missing SPF domain recorded as unavailable, NOT mismatch', () => {
+    const raw = [
+      'From: alice@example.com',
+      'Subject: Missing SPF test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const spfComp = result.data.senderIdentity.comparisons.find((c) => c.type === 'from_vs_spf');
+    assert.ok(spfComp);
+    assert.equal(spfComp.status, 'unavailable');
+    assert.equal(result.data.senderIdentity.findings.some((f) => f.id === 'FROM_SPF_DOMAIN_MISMATCH'), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 15: Missing DKIM domain recorded as unavailable, NOT mismatch
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 15: Missing DKIM domain recorded as unavailable, NOT mismatch', () => {
+    const raw = [
+      'From: alice@example.com',
+      'Subject: Missing DKIM test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const dkimComp = result.data.senderIdentity.comparisons.find((c) => c.type === 'from_vs_dkim');
+    assert.ok(dkimComp);
+    assert.equal(dkimComp.status, 'unavailable');
+    assert.equal(result.data.senderIdentity.findings.some((f) => f.id === 'FROM_DKIM_DOMAIN_MISMATCH'), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 16: From vs DMARC header.from mismatch
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 16: From vs DMARC header.from mismatch', () => {
+    const raw = [
+      'Authentication-Results: mx.example.com; dmarc=pass header.from=different.org',
+      'From: user@example.com',
+      'Subject: DMARC header.from test',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    const dmarcComp = result.data.senderIdentity.comparisons.find((c) => c.type === 'from_vs_dmarc_header_from');
+    assert.ok(dmarcComp);
+    assert.equal(dmarcComp.status, 'mismatch');
+    const finding = result.data.senderIdentity.findings.find((f) => f.id === 'FROM_DMARC_HEADER_FROM_MISMATCH');
+    assert.ok(finding);
+    assert.equal(finding.sourceA.domain, 'example.com');
+    assert.equal(finding.sourceB.domain, 'different.org');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 4 - TEST 17: Missing From header handled gracefully
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 4 - TEST 17: Missing From header handled gracefully', () => {
+    const raw = [
+      'To: recipient@example.com',
+      'Subject: No From Header',
+      'Reply-To: support@example.com',
+      '',
+      'Body'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    assert.equal(result.data.senderIdentity.identities.from, null);
+    assert.equal(result.data.senderIdentity.comparisons.every((c) => c.status === 'unavailable'), true);
+    assert.equal(result.data.senderIdentity.findings.length, 0);
   });
 
   // ---------------------------------------------------------------------------

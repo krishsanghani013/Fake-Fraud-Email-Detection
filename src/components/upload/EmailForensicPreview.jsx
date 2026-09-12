@@ -20,14 +20,18 @@ import {
   ShieldAlert,
   KeyRound,
   Info,
-  Server
+  Server,
+  UserCheck,
+  AlertTriangle,
+  Fingerprint,
+  MinusCircle
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useToast } from '../ui/Toast';
 
 export function EmailForensicPreview({ emailData }) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'auth' | 'artifacts' | 'body' | 'mime' | 'attachments' | 'headers'
+  const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'identity' | 'auth' | 'artifacts' | 'body' | 'mime' | 'attachments' | 'headers'
   const [copied, setCopied] = useState(false);
   const [headerFilter, setHeaderFilter] = useState('');
 
@@ -53,6 +57,11 @@ export function EmailForensicPreview({ emailData }) {
       dkim: { signatures: [], results: [] },
       dmarc: { results: [] },
       arc: { seals: [], messageSignatures: [], authenticationResults: [] }
+    },
+    senderIdentity = {
+      identities: { from: null, replyTo: [], returnPath: null, spf: [], dkim: [], dmarc: [] },
+      comparisons: [],
+      findings: []
     }
   } = emailData;
 
@@ -93,6 +102,10 @@ export function EmailForensicPreview({ emailData }) {
             <span>{artifacts.ips.length} IPs</span>
             <span>•</span>
             <span>{authentication.dkim.signatures.length} DKIM Signatures</span>
+            <span>•</span>
+            <span className={senderIdentity.findings?.length > 0 ? 'text-warningYellow font-bold' : ''}>
+              {senderIdentity.findings?.length || 0} Identity Mismatches
+            </span>
           </div>
         </div>
 
@@ -125,6 +138,17 @@ export function EmailForensicPreview({ emailData }) {
           }`}
         >
           <Mail className="w-4 h-4" /> Metadata
+        </button>
+
+        <button
+          onClick={() => setActiveTab('identity')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'identity'
+              ? 'bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/40 shadow-glowBlue'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" /> Sender Identity ({senderIdentity.comparisons?.length || 0})
         </button>
 
         <button
@@ -274,7 +298,267 @@ export function EmailForensicPreview({ emailData }) {
           </Card>
         )}
 
-        {/* TAB 2: AUTHENTICATION EVIDENCE (PHASE 3) */}
+        {/* TAB 2: SENDER IDENTITY & CONSISTENCY (PHASE 4) */}
+        {activeTab === 'identity' && (
+          <div className="space-y-6">
+            {/* Forensic Principle Notice */}
+            <div className="p-4 rounded-2xl bg-primaryBlue/10 border border-primaryBlue/30 text-xs flex items-start gap-3">
+              <Info className="w-4 h-4 text-primaryBlue flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <div className="font-semibold text-textPrimary font-mono">
+                  Deterministic Header Consistency Findings
+                </div>
+                <div className="text-textSecondary leading-relaxed font-sans">
+                  The consistency checks below deterministically compare sender identities across message headers and authentication records.
+                  Mismatches represent observed header discrepancies and NOT independent proof of maliciousness or fraud. Legitimate mailing lists, transactional gateways, and enterprise relays frequently show envelope discrepancies.
+                </div>
+              </div>
+            </div>
+
+            {/* Identities Overview Grid */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-cyanAccent" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    Primary Sender Identities
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-textSecondary">Extracted from Headers & Auth</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+                {/* From Identity */}
+                <div className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                  <div className="flex items-center justify-between text-textSecondary">
+                    <span>From Header:</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-primaryBlue font-semibold">Primary</span>
+                  </div>
+                  <div className="font-semibold text-textPrimary break-all">
+                    {senderIdentity.identities?.from?.address || 'None'}
+                  </div>
+                  <div className="text-[11px] text-textSecondary">
+                    Domain: <strong className="text-cyanAccent">{senderIdentity.identities?.from?.domain || 'None'}</strong>
+                  </div>
+                </div>
+
+                {/* Reply-To Identity */}
+                <div className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                  <div className="flex items-center justify-between text-textSecondary">
+                    <span>Reply-To ({senderIdentity.identities?.replyTo?.length || 0}):</span>
+                  </div>
+                  {senderIdentity.identities?.replyTo?.length === 0 ? (
+                    <div className="text-textSecondary italic">None</div>
+                  ) : (
+                    senderIdentity.identities.replyTo.map((rt, idx) => (
+                      <div key={idx} className="space-y-0.5 border-b border-white/5 pb-1 last:border-none last:pb-0">
+                        <div className="font-semibold text-textPrimary break-all">{rt.address || rt.raw}</div>
+                        <div className="text-[11px] text-textSecondary">
+                          Domain: <strong className="text-cyanAccent">{rt.domain || 'None'}</strong>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Return-Path Identity */}
+                <div className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                  <div className="flex items-center justify-between text-textSecondary">
+                    <span>Return-Path:</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-textSecondary">Envelope</span>
+                  </div>
+                  <div className="font-semibold text-textPrimary break-all">
+                    {senderIdentity.identities?.returnPath?.address || 'None'}
+                  </div>
+                  <div className="text-[11px] text-textSecondary">
+                    Domain: <strong className="text-cyanAccent">{senderIdentity.identities?.returnPath?.domain || 'None'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Authentication Domains Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono pt-2">
+                {/* SPF Domains */}
+                <div className="p-3 rounded-2xl bg-surfaceSecondary/60 border border-borderSubtle space-y-1">
+                  <span className="text-textSecondary text-[11px]">SPF Authenticated Domains:</span>
+                  {senderIdentity.identities?.spf?.length === 0 ? (
+                    <div className="text-textSecondary italic text-[11px]">None reported</div>
+                  ) : (
+                    senderIdentity.identities.spf.map((s, idx) => (
+                      <div key={idx} className="text-textPrimary font-semibold flex items-center justify-between">
+                        <span>{s.domain}</span>
+                        <span className="text-[10px] text-textSecondary">{s.source}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* DKIM Signing Domains */}
+                <div className="p-3 rounded-2xl bg-surfaceSecondary/60 border border-borderSubtle space-y-1">
+                  <span className="text-textSecondary text-[11px]">DKIM Signing Domains (d=):</span>
+                  {senderIdentity.identities?.dkim?.length === 0 ? (
+                    <div className="text-textSecondary italic text-[11px]">None observed</div>
+                  ) : (
+                    senderIdentity.identities.dkim.map((d, idx) => (
+                      <div key={idx} className="text-textPrimary font-semibold flex items-center justify-between">
+                        <span>{d.domain}</span>
+                        {d.selector && <span className="text-[10px] text-textSecondary">s={d.selector}</span>}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* DMARC header.from */}
+                <div className="p-3 rounded-2xl bg-surfaceSecondary/60 border border-borderSubtle space-y-1">
+                  <span className="text-textSecondary text-[11px]">DMARC header.from:</span>
+                  {senderIdentity.identities?.dmarc?.length === 0 ? (
+                    <div className="text-textSecondary italic text-[11px]">None reported</div>
+                  ) : (
+                    senderIdentity.identities.dmarc.map((dm, idx) => (
+                      <div key={idx} className="text-textPrimary font-semibold">
+                        {dm.domain || dm.headerFrom}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Consistency Checks Matrix */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <Fingerprint className="w-4 h-4 text-primaryBlue" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    Identity Consistency Checks ({senderIdentity.comparisons?.length || 0})
+                  </h3>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] font-mono">
+                  <span className="inline-flex items-center gap-1 text-successGreen">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Match
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-warningYellow">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Mismatch
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-textSecondary">
+                    <MinusCircle className="w-3.5 h-3.5" /> Unavailable
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {senderIdentity.comparisons?.map((comp, idx) => {
+                  const isMatch = comp.status === 'match';
+                  const isMismatch = comp.status === 'mismatch';
+                  const isUnavailable = comp.status === 'unavailable';
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-4 rounded-2xl border text-xs font-mono space-y-2 transition-all ${
+                        isMatch
+                          ? 'bg-successGreen/5 border-successGreen/20'
+                          : isMismatch
+                          ? 'bg-warningYellow/5 border-warningYellow/30'
+                          : 'bg-surfaceSecondary border-borderSubtle'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-bold text-textPrimary uppercase">
+                          {isMatch && <CheckCircle2 className="w-4 h-4 text-successGreen" />}
+                          {isMismatch && <AlertTriangle className="w-4 h-4 text-warningYellow" />}
+                          {isUnavailable && <MinusCircle className="w-4 h-4 text-textSecondary" />}
+                          <span>{comp.type.replace(/_/g, ' ')}</span>
+                        </div>
+
+                        <span
+                          className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            isMatch
+                              ? 'bg-successGreen/20 text-successGreen border border-successGreen/40'
+                              : isMismatch
+                              ? 'bg-warningYellow/20 text-warningYellow border border-warningYellow/40'
+                              : 'bg-white/10 text-textSecondary border border-white/10'
+                          }`}
+                        >
+                          {comp.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-white/5">
+                        <div>
+                          <span className="text-textSecondary">{comp.sourceA?.type}: </span>
+                          <span className="text-textPrimary font-semibold">{comp.sourceA?.domain || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="text-textSecondary">{comp.sourceB?.type}: </span>
+                          <span className="text-textPrimary font-semibold">{comp.sourceB?.domain || 'N/A'}</span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-textSecondary leading-relaxed">{comp.message}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+
+            {/* Detected Mismatch Findings */}
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-warningYellow" />
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-textPrimary">
+                    Detected Mismatch Findings ({senderIdentity.findings?.length || 0})
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-textSecondary">Deterministic Evidence Findings</span>
+              </div>
+
+              {senderIdentity.findings?.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-successGreen/10 border border-successGreen/20 text-xs font-mono text-successGreen flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>No sender domain mismatches detected. All evaluated headers are consistent.</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {senderIdentity.findings.map((f, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-2xl bg-warningYellow/10 border border-warningYellow/30 text-xs font-mono space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-textPrimary text-xs">{f.id}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-textSecondary">
+                            {f.comparison}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-warningYellow uppercase px-2 py-0.5 rounded bg-warningYellow/20 border border-warningYellow/30">
+                          Observed Mismatch
+                        </span>
+                      </div>
+
+                      <p className="text-textSecondary leading-relaxed">{f.message}</p>
+
+                      {f.evidence && (
+                        <div className="p-2.5 rounded-xl bg-surfacePrimary/80 border border-borderSubtle text-[10px] space-y-1 break-all">
+                          {f.evidence.fromRaw && <div><strong>From Raw:</strong> {f.evidence.fromRaw}</div>}
+                          {f.evidence.replyToRaw && <div><strong>Reply-To Raw:</strong> {f.evidence.replyToRaw}</div>}
+                          {f.evidence.returnPathRaw && <div><strong>Return-Path Raw:</strong> {f.evidence.returnPathRaw}</div>}
+                          {f.evidence.spfRaw && <div><strong>SPF Raw:</strong> {f.evidence.spfRaw}</div>}
+                          {f.evidence.dkimRaw && <div><strong>DKIM Raw:</strong> {f.evidence.dkimRaw}</div>}
+                          {f.evidence.dmarcRaw && <div><strong>DMARC Raw:</strong> {f.evidence.dmarcRaw}</div>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* TAB 3: AUTHENTICATION EVIDENCE (PHASE 3) */}
         {activeTab === 'auth' && (
           <div className="space-y-6">
             {/* Forensic Principle Notice */}

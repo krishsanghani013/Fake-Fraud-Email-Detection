@@ -24,23 +24,23 @@ A standard-compliant, zero-retention RFC 5322 email ingestion, validation, and f
                             ▼
                  NORMALIZED EMAIL OBJECT
                             │
-            ┌───────────────┴───────────────┐
-            ▼                               ▼
-┌────────────────────────┐     ┌────────────────────────┐
-│   ARTIFACT EXTRACTOR   │     │ AUTHENTICATION FORENSIC│
-│   (emailArtifacts.js)  │     │   (emailAuth.js)       │
-└───────────┬────────────┘     └───────────┬────────────┘
-            │                              │
-    ┌───────┼───────┐              ┌───────┼───────┐
-    ▼       ▼       ▼              ▼       ▼       ▼
-  URLs     IPs   Domains          SPF    DKIM    DMARC
-(Norm.)  (v4/v6) (Subdomains)              │
-                                           ▼
-                                          ARC
-
+            ┌───────────────┼───────────────┐
+            ▼               ▼               ▼
+┌──────────────────┐┌──────────────────┐┌──────────────────┐
+│ARTIFACT EXTRACTOR││AUTHENTICATION    ││ SENDER IDENTITY  │
+│(emailArtifacts.js││  (emailAuth.js)  ││(senderIdentity.js│
+└─────────┬────────┘└─────────┬────────┘└─────────┬────────┘
+          │                   │                   │
+    ┌─────┼─────┐       ┌─────┼─────┐             │
+    ▼     ▼     ▼       ▼     ▼     ▼             ▼
+  URLs   IPs  Domains  SPF   DKIM  DMARC   CONSISTENCY MATRIX
+(Norm.) (v4/6) (Sub.)         │            & FINDINGS LOG
+                              ▼            (From vs Reply-To,
+                             ARC            Return-Path, SPF,
+                                            DKIM, DMARC)
                             │
                             ▼
-         CANONICAL OBJECT WITH ARTIFACTS & AUTHENTICATION
+         CANONICAL OBJECT WITH ALL FORENSIC LAYERS
                             │
                             ▼
           UI INSPECTION VIEW & POST /api/parse-eml
@@ -50,7 +50,7 @@ A standard-compliant, zero-retention RFC 5322 email ingestion, validation, and f
 
 ## 2. Canonical Data Models
 
-### Normalized Email Object (Phase 1, 2 & 3)
+### Normalized Email Object (Phase 1, 2, 3 & 4)
 Every parsed email produces the exact canonical structure:
 ```json
 {
@@ -96,7 +96,79 @@ Every parsed email produces the exact canonical structure:
     "size": 1024
   },
   "artifacts": { ... },
-  "authentication": { ... }
+  "authentication": { ... },
+  "senderIdentity": { ... }
+}
+```
+
+### Canonical Sender Identity Object (Phase 4)
+Located under `data.senderIdentity`:
+```json
+{
+  "identities": {
+    "from": {
+      "address": "alice@example.com",
+      "domain": "example.com",
+      "raw": "Alice <alice@example.com>"
+    },
+    "replyTo": [
+      {
+        "address": "support@evil.com",
+        "domain": "evil.com",
+        "raw": "support@evil.com"
+      }
+    ],
+    "returnPath": {
+      "address": "bounce@mailer.example.net",
+      "domain": "mailer.example.net",
+      "raw": "<bounce@mailer.example.net>"
+    },
+    "spf": [
+      {
+        "domain": "example.com",
+        "source": "Authentication-Results",
+        "raw": "mx.example.com; spf=pass smtp.mailfrom=example.com"
+      }
+    ],
+    "dkim": [
+      {
+        "domain": "example.com",
+        "selector": "s1",
+        "source": "DKIM-Signature",
+        "raw": "v=1; a=rsa-sha256; d=example.com; ..."
+      }
+    ],
+    "dmarc": [
+      {
+        "headerFrom": "example.com",
+        "domain": "example.com",
+        "source": "Authentication-Results",
+        "raw": "mx.example.com; dmarc=pass header.from=example.com"
+      }
+    ]
+  },
+  "comparisons": [
+    {
+      "type": "from_vs_reply_to",
+      "status": "mismatch",
+      "sourceA": { "type": "From", "value": "alice@example.com", "domain": "example.com" },
+      "sourceB": { "type": "Reply-To", "value": "support@evil.com", "domain": "evil.com" },
+      "evidence": { "fromRaw": "Alice <alice@example.com>", "replyToRaw": "support@evil.com" },
+      "message": "From domain (example.com) and Reply-To domain (evil.com) do not match."
+    }
+  ],
+  "findings": [
+    {
+      "id": "FROM_REPLY_TO_DOMAIN_MISMATCH",
+      "type": "sender_identity_mismatch",
+      "comparison": "from_vs_reply_to",
+      "detected": true,
+      "sourceA": { "type": "From", "value": "alice@example.com", "domain": "example.com" },
+      "sourceB": { "type": "Reply-To", "value": "support@evil.com", "domain": "evil.com" },
+      "evidence": { "fromRaw": "Alice <alice@example.com>", "replyToRaw": "support@evil.com" },
+      "message": "From domain (example.com) and Reply-To domain (evil.com) do not match."
+    }
+  ]
 }
 ```
 
@@ -104,93 +176,15 @@ Every parsed email produces the exact canonical structure:
 Located under `data.authentication`:
 ```json
 {
-  "authenticationResults": [
-    {
-      "server": "mx.example.com",
-      "raw": "mx.example.com; spf=pass smtp.mailfrom=example.com; dkim=pass header.d=example.com; dmarc=pass header.from=example.com",
-      "spf": {
-        "result": "pass",
-        "rawResult": "pass",
-        "mailFrom": "example.com",
-        "domain": "example.com"
-      },
-      "dkim": {
-        "result": "pass",
-        "rawResult": "pass",
-        "headerD": "example.com",
-        "domain": "example.com"
-      },
-      "dmarc": {
-        "result": "pass",
-        "rawResult": "pass",
-        "headerFrom": "example.com",
-        "domain": "example.com"
-      },
-      "arc": null
-    }
-  ],
-  "receivedSpf": [
-    {
-      "result": "pass",
-      "rawResult": "pass",
-      "clientIp": "203.0.113.10",
-      "domain": "example.com",
-      "raw": "pass (domain of example.com designates 203.0.113.10 as permitted sender) client-ip=203.0.113.10;"
-    }
-  ],
-  "spf": {
-    "results": [ ... ]
-  },
-  "dkim": {
-    "signatures": [
-      {
-        "version": "1",
-        "algorithm": "rsa-sha256",
-        "canonicalization": { "header": "relaxed", "body": "relaxed" },
-        "domain": "example.com",
-        "selector": "selector1",
-        "signedHeaders": ["from", "to", "subject", "date"],
-        "bodyHash": "abc123==",
-        "signature": "sig==",
-        "raw": "v=1; a=rsa-sha256; ..."
-      }
-    ],
-    "results": [ ... ]
-  },
-  "dmarc": {
-    "results": [ ... ]
-  },
+  "authenticationResults": [ ... ],
+  "receivedSpf": [ ... ],
+  "spf": { "results": [ ... ] },
+  "dkim": { "signatures": [ ... ], "results": [ ... ] },
+  "dmarc": { "results": [ ... ] },
   "arc": {
-    "seals": [
-      {
-        "instance": 1,
-        "algorithm": "rsa-sha256",
-        "cv": "none",
-        "domain": "example.com",
-        "selector": "arc1",
-        "signature": "sig==",
-        "raw": "i=1; a=rsa-sha256; cv=none; ..."
-      }
-    ],
-    "messageSignatures": [
-      {
-        "instance": 1,
-        "algorithm": "rsa-sha256",
-        "domain": "example.com",
-        "selector": "arc1",
-        "raw": "i=1; a=rsa-sha256; ..."
-      }
-    ],
-    "authenticationResults": [
-      {
-        "instance": 1,
-        "server": "mx.example.com",
-        "spf": { "result": "pass" },
-        "dkim": { "result": "pass" },
-        "dmarc": { "result": "pass" },
-        "raw": "i=1; mx.example.com; ..."
-      }
-    ]
+    "seals": [ ... ],
+    "messageSignatures": [ ... ],
+    "authenticationResults": [ ... ]
   }
 }
 ```
@@ -199,38 +193,9 @@ Located under `data.authentication`:
 Located under `data.artifacts`:
 ```json
 {
-  "urls": [
-    {
-      "original": "HTTPS://Example.COM:443/Login.",
-      "normalized": "https://example.com/Login",
-      "domain": "example.com",
-      "source": "html_href"
-    }
-  ],
-  "ips": [
-    {
-      "address": "203.0.113.10",
-      "version": 4,
-      "source": "received_header"
-    },
-    {
-      "address": "2001:db8::1",
-      "version": 6,
-      "source": "received_header"
-    }
-  ],
-  "domains": [
-    {
-      "original": "Example.COM",
-      "normalized": "example.com",
-      "source": "url"
-    },
-    {
-      "original": "example.com",
-      "normalized": "example.com",
-      "source": "sender"
-    }
-  ],
+  "urls": [ ... ],
+  "ips": [ ... ],
+  "domains": [ ... ],
   "senderDomains": {
     "from": ["example.com"],
     "replyTo": ["external.example"],
@@ -243,54 +208,39 @@ Located under `data.artifacts`:
 
 ## 3. Extraction & Normalization Specifications
 
+### Sender Identity & Header Consistency Forensics (Phase 4)
+- **Forensic Principle**:
+  - Phase 4 performs deterministic sender identity consistency analysis across message headers and authentication records.
+  - An observed mismatch is a **forensic finding**, NOT independent proof that an email is malicious or fraudulent. Legitimate mailing lists, transactional relays, and enterprise bounce-handling services routinely exhibit domain variances.
+  - Zero risk scoring, zero confidence scores, and zero automated fraud classifications are produced.
+- **Exact Normalized Domain Comparison**:
+  - Case-insensitive comparison (`toLowerCase()`).
+  - Normalizes trailing periods (`example.com.` -> `example.com`).
+  - Strict exact-domain rule: does NOT treat subdomains as equivalent (`mail.example.com` != `example.com`).
+  - No substring matching or arbitrary domain guessing.
+- **Comparisons Performed**:
+  1. **From ↔ Reply-To**: Evaluates every Reply-To address independently. Emits `FROM_REPLY_TO_DOMAIN_MISMATCH`.
+  2. **From ↔ Return-Path**: Evaluates envelope return path against visible sender. Emits `FROM_RETURN_PATH_DOMAIN_MISMATCH`.
+  3. **From ↔ SPF**: Evaluates explicit SPF authenticated domain(s). Emits `FROM_SPF_DOMAIN_MISMATCH`.
+  4. **From ↔ DKIM**: Evaluates all DKIM signing domains (`d=`) independently. Emits `FROM_DKIM_DOMAIN_MISMATCH`.
+  5. **From ↔ DMARC**: Evaluates DMARC reported `header.from` domain. Emits `FROM_DMARC_HEADER_FROM_MISMATCH`.
+- **Missing Data Handling**:
+  - When an optional header or authentication domain is absent, the comparison status is recorded as `unavailable`. It is **never** manufactured into a false mismatch.
+- **Evidence Traceability**:
+  - Every finding links directly back to `fromRaw`, `replyToRaw`, `returnPathRaw`, `spfRaw`, or `dkimRaw`.
+
 ### Email Authentication Forensics (Phase 3)
-- **Observed vs Verified Principle**:
-  - The module strictly extracts **reported/observed evidence** from email headers.
-  - It does NOT perform cryptographic verification, DNS lookups, or external reputation calls.
-  - Observed headers (like `Authentication-Results: spf=pass`) are attacker-controlled input and clearly demarcated as *Reported by Message Headers (Unverified)*.
-- **Authentication-Results**:
-  - Parsed case-insensitively across multiple occurrences without overwriting.
-  - Extracts server/receiver, SPF result, DKIM result, DMARC result, ARC result, and all associated tags (`smtp.mailfrom`, `header.d`, `header.s`, `header.from`, `policy`).
-  - Missing fields remain `null` or omitted; no fields are fabricated.
-- **SPF & Received-SPF Reconciliation**:
-  - Supports standard SPF states: `pass`, `fail`, `softfail`, `neutral`, `none`, `temperror`, `permerror`, and unknown values.
-  - Never collapses `softfail` into `fail`.
-  - Both `Authentication-Results` and `Received-SPF` are retained in `spf.results: []`. If values conflict (e.g. one reports `pass` while another reports `fail`), both are preserved for future deterministic rule evaluation.
-- **DKIM Signatures vs. DKIM Results**:
-  - Strict separation: `DKIM-Signature` (structural signature metadata in message) is stored under `dkim.signatures`, while verifier reports in `Authentication-Results` are stored under `dkim.results`.
-  - Parses canonicalization (`header`/`body`), selector `s=`, domain `d=`, algorithm `a=`, signed headers `h=`, body hash `bh=`, and signature `b=`.
-- **DMARC Forensics**:
-  - Extracts result (`pass`, `fail`, `none`, `temperror`, `permerror`), `headerFrom`, `domain`, and explicit `policy` (`none`, `quarantine`, `reject`).
-  - Does NOT infer `policy=reject` from `result=fail` unless explicitly stated.
-  - Does NOT infer `headerFrom` from `metadata.from`.
-- **ARC (Authenticated Received Chain)**:
-  - Preserves instances `i=1, 2, ...` across `ARC-Seal`, `ARC-Message-Signature`, and `ARC-Authentication-Results`.
-  - Parses seal CV (`cv=none`, `cv=pass`, `cv=fail`), selector, domain, and message signatures without cryptographic verification.
+- Strictly extracts reported/observed evidence from email headers without cryptographic verification.
+- Parses `Authentication-Results`, `Received-SPF`, `DKIM-Signature`, `DMARC`, and `ARC` chain instances.
+- Preserves raw values, supports multiple occurrences, and reconciles conflicting SPF results without picking winners.
 
 ### URL Extraction & Normalization (Phase 2)
-- **Sources**: Plain-text body, HTML body, and HTML `<a href="...">` attributes (tagged with `source: 'html_href'`).
-- **Punctuation Handling**: Trims surrounding quotes, angle brackets, parentheses, and trailing sentence punctuation (`.`, `,`, `;`, `:`, `!`, `?`).
-- **Normalization**:
-  - Lowercases scheme (`http://`, `https://`).
-  - Lowercases hostname.
-  - Strips default HTTP port `:80` and HTTPS port `:443`.
-  - Removes trailing dot from hostname (`example.com.` → `example.com`).
-  - Preserves path, query parameters, and fragments verbatim.
-- **Deduplication**: Deterministically deduplicates by `normalized` URL while preserving the first observed `original` and `source`.
+- Extracts and normalizes URLs from text, HTML, and `<a href="...">` attributes.
+- Strips default ports (`:80`, `:443`), cleans trailing sentence punctuation, and lowercases schemes and hostnames.
 
 ### IP Address Extraction & Validation (Phase 2)
-- **Source**: `Received` transmission headers.
-- **IPv4 Validation**: Strict octet range validation (`0–255` per octet). Rejects invalid addresses (e.g. `999.999.999.999`) and ordinary numeric sequences.
-- **IPv6 Validation**: Validates 16-bit hex groups and compressed `::` syntax. Rejects false positives such as ordinary timestamps (`10:30:45`).
-- **Deduplication**: Deduplicated by clean IP address.
-
-### Domain & Sender-Domain Extraction (Phase 2)
-- **Domains from URLs**: Extracts hostnames, preserving complete subdomains (e.g., `login.accounts.example.com`).
-- **Sender Domains**:
-  - `from`: Extracted from the `From:` header email address.
-  - `replyTo`: Extracted from `Reply-To:` header email addresses.
-  - `returnPath`: Extracted from `Return-Path:` header email address.
-  - Strictly evidence-based: does NOT infer `Reply-To` from `From` or `Return-Path` from `From`.
+- Strict octet range validation (`0–255`) for IPv4.
+- Validates IPv6 hex groups and compressed syntax while rejecting timestamps.
 
 ---
 
@@ -298,9 +248,9 @@ Located under `data.artifacts`:
 
 - **Untrusted Input**: All email contents, headers, and authentication claims are treated as untrusted attacker-controlled data.
 - **No Remote Network Requests**: Zero external HTTP queries, zero DNS lookups, zero WHOIS, zero VirusTotal/URLhaus lookups.
-- **No Cryptographic Verification**: The system does NOT pretend to cryptographically verify SPF, DKIM, DMARC, or ARC signatures offline. It strictly audits reported evidence.
-- **No Risk Scoring or Fraud Classifications**: No risk scores, confidence points, or malicious verdicts are calculated in Phase 3.
-- **No JavaScript Execution**: HTML emails are never executed in the application DOM or browser context.
+- **No Cryptographic Verification**: System audits reported headers and does not perform RSA/Ed25519 signature verification.
+- **No Risk Scoring or Fraud Classifications**: No risk scores or malicious verdicts are calculated in Phase 4.
+- **No JavaScript Execution**: Email HTML is never executed in the browser context.
 
 ---
 
@@ -310,7 +260,7 @@ Located under `data.artifacts`:
 - **Request Body**:
   ```json
   {
-    "emlContent": "From: sender@example.com\r\nAuthentication-Results: mx.example.com; spf=pass\r\n\r\nVisit https://example.com"
+    "emlContent": "From: sender@example.com\r\nReply-To: support@evil.com\r\n\r\nMessage body"
   }
   ```
 - **Response** (HTTP 200):
@@ -325,7 +275,8 @@ Located under `data.artifacts`:
       "attachments": [],
       "raw": { "size": 128 },
       "artifacts": { ... },
-      "authentication": { ... }
+      "authentication": { ... },
+      "senderIdentity": { ... }
     },
     "warnings": []
   }
@@ -340,7 +291,7 @@ Run all test suites with:
 npm test
 ```
 
-### Covered Test Cases (40 Total Assertions):
+### Covered Test Cases (57 Total Assertions):
 #### Phase 1: Core RFC 5322 & MIME (Tests 1–11)
 1. Simple plain-text email.
 2. HTML email.
@@ -369,19 +320,38 @@ npm test
 23. URL punctuation cleanup (stripping trailing periods and commas).
 
 #### Phase 3: Email Authentication Forensics (Tests 1–15)
-24. **TEST 1 — Authentication-Results SPF PASS**: Detects Authentication-Results header, extracts SPF result (`pass`), `mailfrom`, and `domain`.
-25. **TEST 2 — SPF FAIL**: Extracts `spf=fail` and preserves failed state.
-26. **TEST 3 — SPF SOFTFAIL**: Verifies `softfail` is preserved exactly and not converted to `fail`.
-27. **TEST 4 — Received-SPF**: Parses `Received-SPF` header for result (`pass`), client IP (`203.0.113.10`), and domain.
-28. **TEST 5 — DKIM Signature**: Parses structured tags (`v`, `a`, `c`, `d`, `s`, `h`, `bh`, `b`) and canonicalization.
-29. **TEST 6 — DKIM Authentication Result**: Extracts reported verifier outcome (`dkim=pass`), `header.d`, and `header.s`.
-30. **TEST 7 — DMARC**: Extracts DMARC result (`fail`), `header.from` domain, and explicit `policy=reject`.
-31. **TEST 8 — Multiple Authentication-Results**: Preserves multiple distinct `Authentication-Results` headers.
-32. **TEST 9 — Multiple DKIM Signatures**: Preserves multiple distinct `DKIM-Signature` headers.
-33. **TEST 10 — ARC**: Parses `ARC-Seal`, `ARC-Message-Signature`, and `ARC-Authentication-Results` with instance `i=1`.
-34. **TEST 11 — Folded Authentication Header**: Correctly unwraps folded multiline `Authentication-Results` and extracts SPF, DKIM, and DMARC.
-35. **TEST 12 — Missing Optional Authentication Fields**: Verifies missing fields remain `null`/empty without inventing values.
-36. **TEST 13 — Conflicting SPF Sources**: Preserves both `Authentication-Results` (`pass`) and `Received-SPF` (`fail`) without choosing one.
-37. **TEST 14 — Malformed Authentication Header**: Resilient against malformed syntax; preserves raw evidence without crashing.
-38. **TEST 15 — Mixed Header Casing**: Case-insensitive detection for `authentication-results:`, `received-spf:`, and `dkim-signature:`.
+24. Authentication-Results SPF PASS detection.
+25. SPF FAIL detection.
+26. SPF SOFTFAIL preservation.
+27. Received-SPF parsing.
+28. DKIM Signature tag parsing.
+29. DKIM Authentication Result extraction.
+30. DMARC result and policy parsing.
+31. Multiple Authentication-Results headers preservation.
+32. Multiple DKIM Signatures preservation.
+33. ARC Chain inspection.
+34. Folded Authentication Header unwrapping.
+35. Missing Optional Authentication Fields handling.
+36. Conflicting SPF Sources preservation.
+37. Malformed Authentication Header resilience.
+38. Mixed Header Casing case-insensitivity.
+
+#### Phase 4: Sender Identity & Header Consistency (Tests 1–17)
+39. **TEST 1 — From and Reply-To same domain**: Evaluates `match`, no mismatch finding.
+40. **TEST 2 — From and Reply-To different domains**: Emits `FROM_REPLY_TO_DOMAIN_MISMATCH` with evidence.
+41. **TEST 3 — From and Return-Path same domain**: Evaluates `match`, no mismatch finding.
+42. **TEST 4 — From and Return-Path different domains**: Emits `FROM_RETURN_PATH_DOMAIN_MISMATCH`.
+43. **TEST 5 — From and SPF domain same**: Evaluates `match` against SPF authenticated domain.
+44. **TEST 6 — From and SPF domain different**: Emits `FROM_SPF_DOMAIN_MISMATCH`.
+45. **TEST 7 — From and DKIM d= same**: Evaluates `match` against DKIM signing domain.
+46. **TEST 8 — From and DKIM d= different**: Emits `FROM_DKIM_DOMAIN_MISMATCH`.
+47. **TEST 9 — Multiple DKIM signatures evaluated independently**: Preserves independent matches and mismatches.
+48. **TEST 10 — Multiple Reply-To addresses evaluated independently**: Evaluates each address without collapsing.
+49. **TEST 11 — Case-insensitive domain comparison**: `Example.COM` vs `example.com` -> `match`.
+50. **TEST 12 — Trailing-dot domain normalization**: `example.com.` vs `example.com` -> `match`.
+51. **TEST 13 — Subdomain mismatch (exact-domain rule)**: `mail.example.com` vs `example.com` -> `mismatch`.
+52. **TEST 14 — Missing SPF domain**: Recorded as `unavailable`, NOT a mismatch.
+53. **TEST 15 — Missing DKIM domain**: Recorded as `unavailable`, NOT a mismatch.
+54. **TEST 16 — From vs DMARC header.from mismatch**: Emits `FROM_DMARC_HEADER_FROM_MISMATCH`.
+55. **TEST 17 — Missing From header handled gracefully**: Returns `null` from identity and `unavailable` comparisons without crashing.
 
