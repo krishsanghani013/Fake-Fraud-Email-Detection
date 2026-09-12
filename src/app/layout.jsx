@@ -1,6 +1,7 @@
 import './globals.css';
 import { ToastProvider } from '../components/ui/Toast';
 import { ClerkProvider } from '@clerk/nextjs';
+import { UserSync } from '../components/auth/UserSync';
 
 export const metadata = {
   title: 'AEGIS AI - Advanced Fake & Fraud Email Detection Platform',
@@ -20,6 +21,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="bg-darkBg text-textPrimary antialiased selection:bg-primaryBlue/30 selection:text-white">
         <ClerkProvider>
+          <UserSync />
           <ToastProvider>
             {children}
           </ToastProvider>

@@ -17,8 +17,10 @@ import {
   ExternalLink,
   ChevronRight,
   Filter,
-  Download
+  Download,
+  Database
 } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
 import { AppHeader } from '../../components/layout/AppHeader';
 import { AppSidebar } from '../../components/layout/AppSidebar';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -29,7 +31,12 @@ import { useToast } from '../../components/ui/Toast';
 
 export default function DashboardPage() {
   const { toast } = useToast();
+  const { user, isLoaded } = useUser();
   const sampleList = Object.values(SAMPLE_SCANS);
+
+  const displayName = isLoaded && user
+    ? user.fullName || user.firstName || (user.emailAddresses?.[0]?.emailAddress?.split('@')[0]) || 'Analyst'
+    : 'Analyst';
 
   return (
     <div className="min-h-screen bg-darkBg text-textPrimary flex">
@@ -49,9 +56,12 @@ export default function DashboardPage() {
                 <span className="px-2 py-0.5 rounded-full bg-successGreen/20 text-successGreen text-[10px] font-mono">
                   Online
                 </span>
+                <span className="px-2 py-0.5 rounded-full bg-cyanAccent/10 text-cyanAccent text-[10px] font-mono flex items-center gap-1 border border-cyanAccent/20">
+                  <Database className="w-2.5 h-2.5" /> Supabase Synced
+                </span>
               </div>
               <h1 className="text-2xl font-bold font-heading text-textPrimary">
-                Welcome back, Alex Rivera
+                Welcome back, {displayName}
               </h1>
               <p className="text-xs text-textSecondary">
                 Aegis AI has scanned <strong className="text-textPrimary">2,890 emails</strong> in the last 24 hours. 2 critical BEC threats intercepted.
