@@ -1,0 +1,40 @@
+Return-Path: <security-alert@notify-system.example>
+Received: from mail.notify-system.example ([198.51.100.42]) by mx.company.example ([198.51.100.20]) with ESMTPS id <phish-881> for <user@company.example>; Mon, 14 Sep 2026 11:30:00 +0000
+Authentication-Results: mx.company.example; spf=pass smtp.mailfrom=notify-system.example; dkim=none; dmarc=none
+From: Account Alert Center <security-alert@notify-system.example>
+Reply-To: Credential Verification Desk <credential-collector@different-receiver.example>
+To: Target Employee <user@company.example>
+Subject: URGENT ACTION REQUIRED: Verify Your Account Credentials Within 24 Hours
+Date: Mon, 14 Sep 2026 11:30:00 +0000
+Message-ID: <phish-sim-008@notify-system.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Controlled-Security-Test: Simulated-HTML-Phishing-Lure
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Simulated Security Alert</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f9f9f9; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px;">
+    <div style="border-bottom: 2px solid #d9534f; padding-bottom: 15px; margin-bottom: 20px;">
+      <h2 style="color: #d9534f; margin: 0;">CRITICAL NOTICE: Immediate Action Required</h2>
+    </div>
+    <p>Dear Valued User,</p>
+    <p>We have identified an unauthorized sign-in attempt on your workstation profile. To avoid immediate account suspension, you must verify your credentials and security keys within the next <strong>24 hours</strong>.</p>
+    <p style="margin: 25px 0; text-align: center;">
+      <a href="https://login-security-test.example/verify-account" style="background-color: #d9534f; color: #ffffff; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;">
+        Verify Your Account Now
+      </a>
+    </p>
+    <p>Failure to complete verification will result in permanent account deactivation.</p>
+    <hr style="border: none; border-top: 1px solid #eeeeee; margin: 20px 0;" />
+    <p style="font-size: 12px; color: #777777;">
+      [CONTROLLED FORENSICS TEST FIXTURE: This is a synthetic email created exclusively for email forensics training and automated pipeline validation. No actual credentials or real domains are targeted.]
+    </p>
+  </div>
+</body>
+</html>

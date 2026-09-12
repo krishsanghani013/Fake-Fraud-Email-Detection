@@ -1,0 +1,25 @@
+Return-Path: <security@company.example>
+Received: from mx.company.example ([198.51.100.20]) with ESMTPS id <sec-4481> for <analyst@company.example>; Mon, 14 Sep 2026 09:15:00 +0000
+Authentication-Results: mx.company.example; spf=pass smtp.mailfrom=company.example; dkim=pass header.d=company.example
+From: Example Security Team <security@company.example>
+Reply-To: External Support Team <support@different-example.example>
+To: SOC Analyst <analyst@company.example>
+Subject: Controlled Test: Routine Account Security Profile Review
+Date: Mon, 14 Sep 2026 09:15:00 +0000
+Message-ID: <sec-rev-002@company.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Controlled-Security-Test: Reply-To-Mismatch
+
+Hello Team Member,
+
+This is a scheduled controlled security test reviewing account credentials and access policies.
+Please ensure that your multi-factor authentication devices are updated with the latest approved security keys.
+If you have any operational questions regarding your profile access, reply to this message to reach the designated support desk.
+
+This message is part of an authorized internal security testing procedure.
+
+Regards,
+Internal Security Operations
+Company Example Corp

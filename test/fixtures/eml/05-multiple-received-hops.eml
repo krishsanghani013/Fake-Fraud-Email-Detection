@@ -1,0 +1,25 @@
+Return-Path: <sender@origin.example>
+Received: from relay.example ([198.51.100.50]) by mx.example ([198.51.100.100]) with ESMTPS id <rel-992> for <user@example.com>; Mon, 14 Sep 2026 10:02:15 +0000
+Received: from origin.example ([198.51.100.25]) by relay.example ([198.51.100.50]) with ESMTP id <orig-881> for <user@example.com>; Mon, 14 Sep 2026 10:02:00 +0000
+From: Origin Dispatcher <sender@origin.example>
+To: Recipient User <user@example.com>
+Subject: Controlled Test: Multi-Hop Email Transmission Analysis
+Date: Mon, 14 Sep 2026 10:01:50 +0000
+Message-ID: <multihop-005@origin.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Controlled-Security-Test: Multi-Hop-Transmission
+
+This message is a controlled forensic fixture for verifying RFC 5322 Received header chain reconstruction.
+
+Observed Path:
+1. origin.example [198.51.100.25] -> relay.example [198.51.100.50] at 10:02:00 +0000
+2. relay.example [198.51.100.50] -> mx.example [198.51.100.100] at 10:02:15 +0000
+
+Expected Forensics:
+- Exactly 2 transmission hops extracted
+- Chronological index 0 represents the origin relay hop
+- Chronological index 1 represents the final delivery hop
+- Transit latency between hops calculated as +15 seconds
+- All IPs belong to RFC 5737 TEST-NET-2 (198.51.100.0/24)

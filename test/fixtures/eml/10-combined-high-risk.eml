@@ -1,0 +1,52 @@
+Return-Path: <bounce@unrelated-sender.example>
+Received: from evil-relay.example ([198.51.100.99]) by mx.company.example ([198.51.100.20]) with ESMTPS id <comb-882> for <security-team@company.example>; Mon, 14 Sep 2026 12:30:00 +0000
+Received: from origin-sender.example ([198.51.100.33]) by rogue-proxy.example ([198.51.100.44]) with ESMTP id <comb-881> for <security-team@company.example>; Mon, 14 Sep 2026 12:29:45 +0000
+Authentication-Results: mx.company.example; spf=fail smtp.mailfrom=unrelated-sender.example; dkim=fail header.d=unrelated-sender.example; dmarc=fail header.from=compromised-host.example policy=reject
+Received-SPF: fail (mx.company.example: domain of unrelated-sender.example does not designate 198.51.100.99 as permitted sender) client-ip=198.51.100.99;
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=unrelated-sender.example; s=badkey; t=1789389000; bh=InvalidCombinedBodyHash==; h=From:To:Subject:Date:Message-ID; b=SimulatedFailingDkimCombinedKeySig==
+From: Emergency Incident Desk <security-dept@compromised-host.example>
+Reply-To: Remote Data Drop <credential-drop@external-exfil.example>
+To: SOC Analysts <security-team@company.example>
+Subject: CRITICAL ALERT: Immediate Security Action Required - Multiple Account Compromises Detected
+Date: Mon, 14 Sep 2026 12:29:40 +0000
+Message-ID: <comb-high-risk-010@compromised-host.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_Part_Combined_Boundary_010"
+X-Controlled-Security-Test: Combined-High-Risk-Multi-Vector
+X-Forensics-Simulated: Synthetic multi-indicator payload for deterministic risk engine testing.
+
+------=_Part_Combined_Boundary_010
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Emergency Security Alert</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #111111; background-color: #fff0f0; padding: 20px;">
+  <div style="max-width: 620px; margin: 0 auto; background: #ffffff; border: 2px solid #cc0000; border-radius: 6px; padding: 25px;">
+    <h1 style="color: #cc0000; font-size: 20px;">EMERGENCY SECURITY DIRECTIVE</h1>
+    <p><strong>ATTENTION: IMMEDIATE COMPROMISE MITIGATION REQUIRED WITHIN 1 HOUR.</strong></p>
+    <p>Multiple suspicious sessions have been detected across administrative consoles. Immediate manual re-authentication is mandated to prevent enterprise credential revocation.</p>
+    <p style="text-align: center; margin: 30px 0;">
+      <a href="https://login-security-test.example/emergency-auth" style="background: #cc0000; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;">
+        RESTORE AND SECURE CREDENTIALS NOW
+      </a>
+    </p>
+    <p>Failure to respond immediately will result in irreversible domain lockouts.</p>
+    <p style="font-size: 11px; color: #666666;">
+      [SIMULATED CONTROLLED TEST FIXTURE: Combines auth failures, identity mismatches, transmission anomalies, urgent phrasing, and payload attachment.]
+    </p>
+  </div>
+</body>
+</html>
+
+------=_Part_Combined_Boundary_010
+Content-Type: text/plain; name="audit-evidence-test.txt"
+Content-Disposition: attachment; filename="audit-evidence-test.txt"
+Content-Transfer-Encoding: base64
+
+U2ltdWxhdGVkIGhhcm1sZXNzIGF1ZGl0IGV2aWRlbmNlIGxvZyBjb250ZW50IGZvciBtdWx0aS12ZWN0b3IgdGVzdGluZy4=
+------=_Part_Combined_Boundary_010--

@@ -1,0 +1,24 @@
+Return-Path: <spoofed@untrusted.example>
+Received: from mail.untrusted.example ([198.51.100.99]) by mx.company.example ([198.51.100.20]) with ESMTPS id <auth-fail-774> for <victim@company.example>; Mon, 14 Sep 2026 10:30:00 +0000
+Authentication-Results: mx.company.example; spf=fail smtp.mailfrom=untrusted.example; dkim=fail (signature verification failed) header.d=untrusted.example; dmarc=fail header.from=company.example policy=reject
+Received-SPF: fail (mx.company.example: domain of untrusted.example does not designate 198.51.100.99 as permitted sender) client-ip=198.51.100.99;
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=untrusted.example; s=testkey; t=1789379400; bh=InvalidBodyHashTestOnly==; h=From:To:Subject:Date:Message-ID; b=SimulatedInvalidDkimSignatureData==
+From: Executive Office <ceo@company.example>
+To: Security Auditor <victim@company.example>
+Subject: Controlled Test: Simulated Multi-Protocol Authentication Failure
+Date: Mon, 14 Sep 2026 10:30:00 +0000
+Message-ID: <auth-fail-006@untrusted.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Controlled-Security-Test: Authentication-Failure-Evidence
+X-Simulated-Auth-Notice: All SPF, DKIM, and DMARC failures in this email are synthetic and used strictly for local parser verification.
+
+SECURITY LAB TEST NOTICE:
+This email fixture deliberately simulates explicit authentication validation rejections:
+- SPF outcome: FAIL (smtp.mailfrom=untrusted.example)
+- DKIM outcome: FAIL (header.d=untrusted.example)
+- DMARC outcome: FAIL (header.from=company.example, p=reject)
+
+Forensic Purpose:
+Verify that the authentication evidence parsing module accurately extracts all failure outcomes and that the deterministic risk engine assigns appropriate authentication failure penalties without making external network queries.

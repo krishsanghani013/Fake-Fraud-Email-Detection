@@ -1,0 +1,25 @@
+Subject: Controlled Test: Structural Header Anomaly and Folding Exercise
+MESSAGE-ID: <anomaly-header-009@company.example>
+x-CuSToM-TrAcKeR: TrackingID-Alpha-99482
+X-Folded-Header: InitialToken
+  ContinuationSegmentOne
+  ContinuationSegmentTwo
+X-Spam-Status: No, score=0.1
+X-Spam-Status: ProcessedByRelayEngine
+Received: from hop1.internal.example ([198.51.100.71]) by relay.company.example ([198.51.100.20]) with ESMTP id <anom-01>; Mon, 14 Sep 2026 12:00:00 +0000
+Received: from origin.internal.example ([198.51.100.70]) by hop1.internal.example ([198.51.100.71]) with ESMTP id <anom-00>; Mon, 14 Sep 2026 11:59:50 +0000
+From: Anomaly Testing Service <service@company.example>
+To: Forensics Engineer <engineer@company.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Controlled-Security-Test: Header-Anomalies-Preservation
+
+This email contains syntactically compliant RFC 5322 header anomalies designed to test parser robustness:
+1. Header ordering: Subject and Message-ID appear before From and To.
+2. Folded headers: X-Folded-Header spans across 3 lines with whitespace indentation.
+3. Duplicate headers: Multiple distinct X-Spam-Status and Received headers.
+4. Header casing: Mixed case headers like x-CuSToM-TrAcKeR and MESSAGE-ID.
+5. Missing standard Date header.
+
+The parser must preserve all header occurrences, unfold continuation lines, and parse body content without error.

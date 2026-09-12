@@ -1,0 +1,23 @@
+Return-Path: <bounce@mailer-different.example>
+Received: from mailer.mailer-different.example ([198.51.100.88]) by mx.company.example ([198.51.100.20]) with ESMTPS id <bill-9011> for <finance@company.example>; Mon, 14 Sep 2026 09:30:00 +0000
+Authentication-Results: mx.company.example; spf=pass smtp.mailfrom=mailer-different.example; dkim=pass header.d=company.example
+From: Example Billing Department <billing@company.example>
+To: Finance Team <finance@company.example>
+Subject: Controlled Test: Quarterly Billing Delivery Notification
+Date: Mon, 14 Sep 2026 09:30:00 +0000
+Message-ID: <bill-notif-003@company.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Controlled-Security-Test: Return-Path-Mismatch
+
+Dear Finance Team,
+
+This is an authorized controlled email fixture for verifying envelope Return-Path alignment against the RFC 5322 From header.
+The delivery subsystem routing envelope indicates a distinct return bounce path (bounce@mailer-different.example) while the message presentation From indicates billing@company.example.
+
+This test validates that envelope bounce handling discrepancies are accurately isolated during forensics examination.
+
+Sincerely,
+Billing Services
+Company Example Corp

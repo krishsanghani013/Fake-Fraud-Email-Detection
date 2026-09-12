@@ -1,0 +1,48 @@
+Return-Path: <reports@company.example>
+Received: from mail.company.example ([198.51.100.10]) by mx.company.example ([198.51.100.20]) with ESMTPS id <mime-att-771> for <audit@company.example>; Mon, 14 Sep 2026 11:00:00 +0000
+Authentication-Results: mx.company.example; spf=pass smtp.mailfrom=company.example; dkim=pass header.d=company.example
+From: Report Distribution Service <reports@company.example>
+To: Security Auditor <audit@company.example>
+Subject: Controlled Test: Multi-Part MIME with Harmless Attachment
+Date: Mon, 14 Sep 2026 11:00:00 +0000
+Message-ID: <mime-att-007@company.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_Part_Mixed_Boundary_007"
+X-Controlled-Security-Test: MIME-Multipart-Attachment-Extraction
+
+------=_Part_Mixed_Boundary_007
+Content-Type: multipart/alternative; boundary="----=_Part_Alt_Boundary_007"
+
+------=_Part_Alt_Boundary_007
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Security Audit Team,
+
+Attached is the quarterly security verification report in text format for automated testing.
+Filename: security-report-test.txt
+Payload: Harmless plain text test data.
+
+Regards,
+Compliance Automation System
+------=_Part_Alt_Boundary_007
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+<html>
+<body>
+  <p><strong>Security Audit Team,</strong></p>
+  <p>Attached is the quarterly security verification report in text format for automated testing.</p>
+  <p>Filename: <code>security-report-test.txt</code></p>
+  <p>Payload: Harmless plain text test data.</p>
+</body>
+</html>
+------=_Part_Alt_Boundary_007--
+
+------=_Part_Mixed_Boundary_007
+Content-Type: text/plain; name="security-report-test.txt"
+Content-Disposition: attachment; filename="security-report-test.txt"
+Content-Transfer-Encoding: base64
+
+SGFybWxlc3Mgc2VjdXJpdHkgcmVwb3J0IHRlc3QgZGF0YS4gTm8gbWFsaWNpb3VzIGNvbnRlbnQu
+------=_Part_Mixed_Boundary_007--

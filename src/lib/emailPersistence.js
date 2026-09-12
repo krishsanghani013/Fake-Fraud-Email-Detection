@@ -1,4 +1,3 @@
-import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from './prisma.js';
 
 /**
@@ -8,10 +7,18 @@ import { prisma } from './prisma.js';
  */
 export async function resolveUserProfile() {
   try {
-    const { userId } = await auth();
+    let clerk = null;
+    try {
+      clerk = await import('@clerk/nextjs/server');
+    } catch {
+      // Standalone Node test environment or unbundled runtime
+    }
 
-    if (userId) {
-      const clerkUser = await currentUser();
+    if (clerk?.auth) {
+      const { userId } = await clerk.auth();
+
+      if (userId && clerk?.currentUser) {
+        const clerkUser = await clerk.currentUser();
       const email =
         clerkUser?.emailAddresses?.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress ||
         clerkUser?.emailAddresses?.[0]?.emailAddress ||
@@ -29,6 +36,7 @@ export async function resolveUserProfile() {
       });
 
       return profile;
+      }
     }
   } catch {
     // Unauthenticated or testing environment
@@ -36,6 +44,7 @@ export async function resolveUserProfile() {
 
   // Fallback to first existing profile in Supabase
   try {
+    if (!process.env.DATABASE_URL) return null;
     const existingProfile = await prisma.profile.findFirst({
       orderBy: { createdAt: 'asc' }
     });
@@ -83,7 +92,9 @@ export async function autoPersistEmailToSupabase({
   emailId = null
 }) {
   try {
+    if (!process.env.DATABASE_URL) return null;
     const profile = await resolveUserProfile();
+    if (!profile) return null;
 
     const cleanSender = String(sender || 'unknown@domain.com').slice(0, 255);
     const cleanSubject = String(subject || '(No Subject)').slice(0, 500);

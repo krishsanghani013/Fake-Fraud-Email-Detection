@@ -1,0 +1,31 @@
+Return-Path: <notice@company.example>
+Received: from mail.company.example ([198.51.100.15]) by mx.company.example ([198.51.100.20]) with ESMTPS id <sec-url-104> for <testuser@company.example>; Mon, 14 Sep 2026 09:45:00 +0000
+Authentication-Results: mx.company.example; spf=pass smtp.mailfrom=company.example; dkim=pass header.d=company.example
+From: Security Verification Office <notice@company.example>
+To: Test Recipient <testuser@company.example>
+Subject: Controlled Security Test: Account Verification Link Exercise
+Date: Mon, 14 Sep 2026 09:45:00 +0000
+Message-ID: <url-test-004@company.example>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Controlled-Security-Test: Suspicious-URL-Artifact-Extraction
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Controlled Security Test</title>
+</head>
+<body style="font-family: sans-serif; line-height: 1.5; color: #222;">
+  <h2>Controlled Security Testing Notice</h2>
+  <p>This message is a controlled test payload created exclusively for automated email artifact extraction testing.</p>
+  <p>Please inspect the following simulated link to verify parser URL and domain extraction capabilities:</p>
+  <p style="margin: 20px 0;">
+    <a id="test-verification-link" href="https://login-security-test.example/verify-account" style="background: #0052cc; color: #ffffff; padding: 10px 16px; text-decoration: none; border-radius: 4px;">
+      Verify Account (Security Test Simulated URL)
+    </a>
+  </p>
+  <p>No actual authentication takes place. All domains point to reserved RFC 2606 .example destinations.</p>
+</body>
+</html>

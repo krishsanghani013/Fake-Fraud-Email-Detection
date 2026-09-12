@@ -6,8 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
     "test": "node test/emailParser.test.mjs",
+    "test:eml": "node test/emlFixtures.test.mjs",
+    "test:all": "node test/emlFixtures.test.mjs && node test/emailParser.test.mjs && node test/aiInspect.test.mjs && node test/aiContentDetection.test.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

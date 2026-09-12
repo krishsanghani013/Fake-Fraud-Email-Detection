@@ -1,0 +1,28 @@
+Return-Path: <alice.smith@company.example>
+Received: from mail.company.example ([198.51.100.10]) by mx.company.example ([198.51.100.20]) with ESMTPS id <in-9812> for <bob.jones@company.example>; Mon, 14 Sep 2026 09:00:05 +0000
+Authentication-Results: mx.company.example; spf=pass smtp.mailfrom=company.example; dkim=pass header.d=company.example header.s=s2026; dmarc=pass header.from=company.example
+Received-SPF: pass (mx.company.example: domain of company.example designates 198.51.100.10 as permitted sender)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=company.example; s=s2026; t=1789376400; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; h=From:To:Subject:Date:Message-ID; b=simulatedSignatureBaselinePass==
+From: Alice Smith <alice.smith@company.example>
+To: Bob Jones <bob.jones@company.example>
+Subject: Controlled Test: Weekly Engineering Sync Notes
+Date: Mon, 14 Sep 2026 09:00:00 +0000
+Message-ID: <msg-legit-001@company.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Controlled-Security-Test: Baseline-Legitimate
+
+Hi Bob,
+
+Here are the brief notes from our morning engineering sync:
+1. The sprint deliverables are on schedule.
+2. Architecture documentation updates are ready for peer review.
+3. Code freeze is scheduled for this Thursday at 17:00 UTC.
+
+Please let me know if you have any feedback or agenda items for next week.
+
+Best regards,
+Alice Smith
+Security Engineering Team
+Company Example Corp
