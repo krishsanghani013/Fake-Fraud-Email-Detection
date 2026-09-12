@@ -31,10 +31,14 @@ import {
   Sparkles,
   Loader2,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Bot,
+  Zap
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useToast } from '../ui/Toast';
+import WhyThisScore from '../analysis/WhyThisScore';
+import { AIContentDetectorCard } from '../analysis/AIContentDetectorCard';
 
 export function EmailForensicPreview({ emailData }) {
   const { toast } = useToast();
@@ -45,13 +49,50 @@ export function EmailForensicPreview({ emailData }) {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
 
+  // Phase 9: AI-Generated Content Detection State
+  const [currentAiContentDetection, setCurrentAiContentDetection] = useState(null);
+  const [isAiContentLoading, setIsAiContentLoading] = useState(false);
+
+  const handleRunAiContentDetection = async (forceOffline = false) => {
+    setIsAiContentLoading(true);
+    try {
+      const textToAnalyze = emailData?.body?.text || emailData?.body?.html || emailData?.metadata?.subject || '';
+      const res = await fetch('/api/detect-ai-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textToAnalyze,
+          subject: emailData?.metadata?.subject || '',
+          forceOffline: Boolean(forceOffline),
+          timeoutMs: 35000
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'AI Content Detection failed');
+      }
+      setCurrentAiContentDetection(data.detection);
+      toast(
+        'AI Content Detection Complete',
+        data.detection.isOfflineFallback
+          ? 'Stylometric synthetic analysis complete.'
+          : 'Deep AI & stylometric content analysis complete.',
+        'success'
+      );
+    } catch (err) {
+      toast('Detection Notice', err.message || 'Failed to detect AI content', 'error');
+    } finally {
+      setIsAiContentLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (emailData?.aiAnalysis) {
       setCurrentAiAnalysis(emailData.aiAnalysis);
     }
   }, [emailData]);
 
-  const handleRunAiAnalysis = async () => {
+  const handleRunAiAnalysis = async (forceFallback = false) => {
     setIsAiLoading(true);
     setAiError(null);
     setCurrentAiAnalysis((prev) => ({ ...prev, status: 'RUNNING' }));
@@ -59,7 +100,12 @@ export function EmailForensicPreview({ emailData }) {
       const res = await fetch('/api/ai-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailData })
+        body: JSON.stringify({
+          emailData,
+          timeoutMs: 35000,
+          allowFallback: true,
+          forceFallback: Boolean(forceFallback)
+        })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -73,7 +119,13 @@ export function EmailForensicPreview({ emailData }) {
         toast('AI Analysis Notice', errorMsg, 'error');
       } else {
         setCurrentAiAnalysis(data.aiAnalysis);
-        toast('AI Analysis Complete', 'Evidence-grounded explanation generated successfully.', 'success');
+        toast(
+          data.aiAnalysis?.fallbackEngaged ? 'Forensic Synthesis Ready' : 'AI Analysis Complete',
+          data.aiAnalysis?.fallbackEngaged
+            ? 'Evidence-grounded deterministic explanation synthesized.'
+            : 'Gemini 3.6 Flash explanation generated successfully.',
+          'success'
+        );
       }
     } catch (err) {
       const errorMsg = err.message || 'Network error while contacting AI analysis endpoint';
@@ -353,6 +405,22 @@ export function EmailForensicPreview({ emailData }) {
           }`}
         >
           <Brain className="w-4 h-4 text-purpleAccent" /> AI Explanation {currentAiAnalysis?.status === 'AVAILABLE' ? '✓' : ''}
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('aiContent');
+            if (!currentAiContentDetection) {
+              handleRunAiContentDetection(false);
+            }
+          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'aiContent'
+              ? 'bg-gradient-to-r from-primaryBlue to-purpleAccent text-white shadow-glowPurple'
+              : 'text-textSecondary hover:text-textPrimary'
+          }`}
+        >
+          <Bot className="w-4 h-4" /> AI Content Detector {currentAiContentDetection ? `(${currentAiContentDetection.aiProbability}%)` : ''}
         </button>
       </div>
 
@@ -1469,7 +1537,20 @@ export function EmailForensicPreview({ emailData }) {
             <Card className="p-6 space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-borderSubtle">
                 <div className="text-xs font-bold font-mono text-textPrimary">Plain Text Body</div>
-                <div className="text-xs font-mono text-textSecondary">{body.text.length} characters</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-textSecondary">{body.text.length} characters</span>
+                  <button
+                    onClick={() => {
+                      setActiveTab('aiContent');
+                      if (!currentAiContentDetection) {
+                        handleRunAiContentDetection(false);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purpleAccent/20 hover:bg-purpleAccent/30 border border-purpleAccent/30 text-[11px] font-mono text-purpleAccent transition-all"
+                  >
+                    <Bot className="w-3 h-3" /> Scan AI Origin &rarr;
+                  </button>
+                </div>
               </div>
 
               {body.text ? (
@@ -2019,7 +2100,7 @@ export function EmailForensicPreview({ emailData }) {
                     <h3 className="text-sm font-bold font-heading text-textPrimary flex items-center gap-2">
                       AI-Generated Explanation
                       <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purpleAccent/20 text-purpleAccent border border-purpleAccent/30">
-                        GEMINI 1.5
+                        {(currentAiAnalysis?.model || 'gemini-3.6-flash').toUpperCase()}
                       </span>
                     </h3>
                     <p className="text-xs text-textSecondary">
@@ -2109,8 +2190,16 @@ export function EmailForensicPreview({ emailData }) {
                   Generating AI Forensic Explanation...
                 </h4>
                 <p className="text-xs text-textSecondary max-w-md mx-auto font-mono">
-                  Constructing sanitized evidence package with stable IDs and prompting Gemini for structured explanation.
+                  Consulting Google Gemini 3.6 Flash forensic intelligence engine (~15–20s for in-depth reasoning). Claims are strictly grounded in Phase 1–7 deterministic evidence.
                 </p>
+                <div className="pt-2">
+                  <button
+                    onClick={() => handleRunAiAnalysis(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-mono text-purpleAccent transition-all border border-purpleAccent/20"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" /> Need instant results? Switch to Instant Deterministic Synthesis
+                  </button>
+                </div>
               </Card>
             )}
 
@@ -2144,17 +2233,31 @@ export function EmailForensicPreview({ emailData }) {
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-darkBg/60 border border-white/10 text-xs font-mono text-textSecondary">
-                  <strong className="text-red-400">Reason:</strong>{' '}
-                  {currentAiAnalysis.error || currentAiAnalysis.reason || 'AI service could not be reached.'}
+                <div className="p-3.5 rounded-xl bg-darkBg/60 border border-white/10 text-xs font-mono text-textSecondary space-y-2">
+                  <div>
+                    <strong className="text-red-400">Reason:</strong>{' '}
+                    {currentAiAnalysis.error || currentAiAnalysis.reason || 'AI service could not be reached.'}
+                  </div>
+                  {(!currentAiAnalysis.error || currentAiAnalysis.error.includes('GEMINI_API_KEY')) && (
+                    <div className="pt-2 border-t border-white/10 text-[11px] text-purpleAccent flex flex-wrap items-center justify-between gap-2">
+                      <span>💡 Configure <code>GEMINI_API_KEY</code> and <code>GEMINI_MODEL=gemini-3.6-flash</code> in <code>.env.local</code> or update in Platform Settings.</span>
+                      <a href="/settings" className="underline hover:text-white font-semibold">Go to Settings &rarr;</a>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex justify-end pt-2">
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
                   <button
-                    onClick={handleRunAiAnalysis}
+                    onClick={() => handleRunAiAnalysis(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purpleAccent/20 border border-purpleAccent/40 hover:bg-purpleAccent/30 text-purpleAccent text-xs font-semibold transition-all"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" /> Instant Deterministic Synthesis
+                  </button>
+                  <button
+                    onClick={() => handleRunAiAnalysis(false)}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surfaceSecondary border border-borderSubtle hover:border-purpleAccent/40 text-textPrimary text-xs font-semibold transition-all"
                   >
-                    <RefreshCw className="w-3.5 h-3.5 text-purpleAccent" /> Retry AI Analysis
+                    <RefreshCw className="w-3.5 h-3.5 text-purpleAccent" /> Retry Live AI Analysis
                   </button>
                 </div>
               </Card>
@@ -2163,6 +2266,24 @@ export function EmailForensicPreview({ emailData }) {
             {/* STATE: AVAILABLE */}
             {currentAiAnalysis.status === 'AVAILABLE' && (
               <div className="space-y-6">
+                {/* Deterministic Fallback Active Banner */}
+                {currentAiAnalysis.fallbackEngaged && (
+                  <div className="p-4 rounded-2xl bg-purpleAccent/10 border border-purpleAccent/30 text-xs text-textPrimary flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 text-purpleAccent">
+                      <Sparkles className="w-4 h-4 shrink-0" />
+                      <span>
+                        <strong>Deterministic Forensic Synthesis Active:</strong> {currentAiAnalysis.fallbackReason || 'Grounding derived from Phase 1–7 deterministic evidence.'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRunAiAnalysis(false)}
+                      disabled={isAiLoading}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purpleAccent/20 hover:bg-purpleAccent/30 text-purpleAccent font-mono text-[11px] font-medium transition-all"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isAiLoading ? 'animate-spin' : ''}`} /> Retry Live Gemini
+                    </button>
+                  </div>
+                )}
                 {/* Score Alignment & Metadata Overview */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <Card className="p-4 space-y-1">
@@ -2187,7 +2308,7 @@ export function EmailForensicPreview({ emailData }) {
                   <Card className="p-4 space-y-1">
                     <div className="text-[10px] font-mono uppercase text-textSecondary">AI Model</div>
                     <div className="text-lg font-bold font-mono text-textPrimary">
-                      {currentAiAnalysis.model || 'gemini-1.5-flash'}
+                      {currentAiAnalysis.model || 'gemini-3.6-flash'}
                     </div>
                     <div className="text-[10px] font-mono text-textSecondary">Official Google Gemini API</div>
                   </Card>
@@ -2458,7 +2579,89 @@ export function EmailForensicPreview({ emailData }) {
                     </ul>
                   </Card>
                 )}
+
+                {/* Evidence Chain & Why This Score Console */}
+                <WhyThisScore
+                  evidence={
+                    currentAiAnalysis.keyFindings?.map((kf, i) => ({
+                      id: kf.evidenceIds?.[0] || `AI-${i + 1}`,
+                      type: kf.title,
+                      severity: kf.severity,
+                      description: kf.explanation,
+                      evidence: kf.evidenceIds?.join(', '),
+                      category: 'ai',
+                      riskContribution: kf.severity === 'CRITICAL' ? 25 : kf.severity === 'HIGH' ? 15 : 10,
+                      confidence: 95
+                    })) || []
+                  }
+                  riskScore={risk.totalScore}
+                  riskLevel={risk.level}
+                  verdict={risk.level}
+                  categoryScores={{
+                    aiContent: { score: Math.min(30, Math.round((risk.totalScore * 30) / 100)), max: 30 },
+                    threatIntel: { score: Math.min(30, (emailData.threatIntel?.summary?.maliciousCount || 0) * 15), max: 30 },
+                    authentication: { score: Math.min(25, (emailData.authentication?.dmarc?.status === 'FAIL' ? 15 : 0) + (emailData.authentication?.spf?.status === 'FAIL' ? 10 : 0)), max: 25 },
+                    senderIdentity: { score: Math.min(15, (emailData.senderIdentity?.findings?.length || 0) * 5), max: 15 }
+                  }}
+                />
               </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 13: AI CONTENT DETECTION */}
+        {activeTab === 'aiContent' && (
+          <div className="space-y-6">
+            {!currentAiContentDetection && !isAiContentLoading && (
+              <Card className="p-12 text-center space-y-4 border border-dashed border-borderSubtle">
+                <div className="inline-flex p-4 rounded-3xl bg-purpleAccent/10 border border-purpleAccent/30 text-purpleAccent mb-2">
+                  <Bot className="w-8 h-8" />
+                </div>
+                <h4 className="text-base font-bold font-heading text-textPrimary">
+                  AI-Generated Synthetic Content Detection
+                </h4>
+                <p className="text-xs text-textSecondary max-w-lg mx-auto leading-relaxed">
+                  Evaluate whether this email's text was generated by an AI/LLM (ChatGPT, Claude, Gemini, synthetic phishing templates) or written by a human. Analyzes sentence burstiness, token predictability, and classic synthetic hallmarks.
+                </p>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => handleRunAiContentDetection(true)}
+                    disabled={isAiContentLoading}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surfaceSecondary hover:bg-white/10 border border-borderSubtle text-xs font-mono font-semibold text-textPrimary transition-all"
+                  >
+                    <Zap className="w-4 h-4 text-cyanAccent" /> Instant Stylometric Scan (0ms)
+                  </button>
+                  <button
+                    onClick={() => handleRunAiContentDetection(false)}
+                    disabled={isAiContentLoading}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-primaryBlue to-purpleAccent hover:opacity-90 disabled:opacity-50 text-white text-xs font-bold font-mono transition-all shadow-glowPurple"
+                  >
+                    <Sparkles className="w-4 h-4" /> Run Deep AI Origin Detection
+                  </button>
+                </div>
+              </Card>
+            )}
+
+            {isAiContentLoading && (
+              <Card className="p-12 text-center space-y-4">
+                <Loader2 className="w-10 h-10 animate-spin text-purpleAccent mx-auto" />
+                <h4 className="text-sm font-bold font-heading text-textPrimary">
+                  Evaluating Email Linguistic Cadence & Origin...
+                </h4>
+                <p className="text-xs text-textSecondary max-w-md mx-auto font-mono">
+                  Measuring sentence burstiness, vocabulary entropy, n-gram smoothing, and inspecting for synthetic LLM hallmarks.
+                </p>
+              </Card>
+            )}
+
+            {currentAiContentDetection && !isAiContentLoading && (
+              <AIContentDetectorCard
+                detection={currentAiContentDetection}
+                onRerun={(forceOffline) => handleRunAiContentDetection(forceOffline)}
+                isLoading={isAiContentLoading}
+                rawText={emailData?.body?.text || emailData?.body?.html || ''}
+                subject={emailData?.metadata?.subject || ''}
+              />
             )}
           </div>
         )}

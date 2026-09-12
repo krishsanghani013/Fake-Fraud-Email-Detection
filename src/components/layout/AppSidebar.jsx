@@ -33,6 +33,7 @@ export function AppSidebar() {
     { label: 'Analyze Email', href: '/upload', icon: UploadCloud, badge: 'Scanner' },
     { label: 'Analysis Report', href: '/results/scan-89421', icon: FileCheck2, badge: null },
     { label: 'Explainable AI View', href: '/ai-explanation', icon: BrainCircuit, badge: null },
+    { label: 'AI Content Detector', href: '/ai-detector', icon: Sparkles, badge: 'New' },
     { label: '13 Risk Indicators', href: '/risk-indicators', icon: Sliders, badge: '13' },
     { label: 'Investigation Timeline', href: '/investigation-timeline', icon: GitCommit, badge: null },
     { label: 'Threat Analytics', href: '/analytics', icon: BarChart3, badge: null },

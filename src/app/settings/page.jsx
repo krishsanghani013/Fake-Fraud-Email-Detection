@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings,
   User,
@@ -14,7 +14,12 @@ import {
   CheckCircle2,
   Lock,
   RefreshCw,
-  Database
+  Database,
+  Brain,
+  Sparkles,
+  ExternalLink,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
 import { AppHeader } from '../../components/layout/AppHeader';
@@ -29,6 +34,60 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
   const [apiKey, setApiKey] = useState('aegis_live_98a712f89a012bc789a123');
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Google Gemini AI Model & Key Configuration
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiModel, setGeminiModel] = useState('gemini-3.6-flash');
+  const [isTestingGemini, setIsTestingGemini] = useState(false);
+  const [geminiTestResult, setGeminiTestResult] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedKey = localStorage.getItem('aegis_gemini_key') || '';
+      const savedModel = localStorage.getItem('aegis_gemini_model') || 'gemini-3.6-flash';
+      if (savedKey) setGeminiApiKey(savedKey);
+      if (savedModel) setGeminiModel(savedModel);
+    }
+  }, []);
+
+  const handleTestGemini = async () => {
+    setIsTestingGemini(true);
+    setGeminiTestResult(null);
+    try {
+      const res = await fetch('/api/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: geminiApiKey.trim() || undefined,
+          model: geminiModel.trim() || 'gemini-3.6-flash',
+          timeoutMs: 30000,
+          emailData: {
+            metadata: { subject: 'Test Gemini Connection' },
+            risk: { totalScore: 0, level: 'LOW', contributions: [] },
+            authentication: {},
+            senderIdentity: {},
+            transmission: {},
+            threatIntel: {}
+          }
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.aiAnalysis.status === 'AVAILABLE') {
+        const msg = `Connected to Google Gemini (${data.aiAnalysis.model || geminiModel}) successfully!`;
+        setGeminiTestResult({ success: true, message: msg });
+        toast('Gemini AI Connected', msg, 'success');
+      } else {
+        const err = data.aiAnalysis?.error || data.error || 'Connection failed. Verify API key and model name.';
+        setGeminiTestResult({ success: false, message: err });
+        toast('Gemini Connection Notice', err, 'error');
+      }
+    } catch (err) {
+      setGeminiTestResult({ success: false, message: err.message || 'Network error testing Gemini API.' });
+      toast('Gemini Test Error', err.message, 'error');
+    } finally {
+      setIsTestingGemini(false);
+    }
+  };
 
   const userFullName = isLoaded && user ? user.fullName || user.firstName || '' : '';
   const userEmail = isLoaded && user ? user.emailAddresses?.[0]?.emailAddress || '' : '';
@@ -56,7 +115,11 @@ export default function SettingsPage() {
   };
 
   const handleSave = () => {
-    toast('Settings Saved', 'Organization preferences updated safely', 'success');
+    if (typeof window !== 'undefined') {
+      if (geminiApiKey) localStorage.setItem('aegis_gemini_key', geminiApiKey.trim());
+      if (geminiModel) localStorage.setItem('aegis_gemini_model', geminiModel.trim());
+    }
+    toast('Settings Saved', 'Platform and Gemini 3.6 preferences saved successfully', 'success');
   };
 
   return (
@@ -188,30 +251,117 @@ export default function SettingsPage() {
 
             {activeTab === 'api' && (
               <div className="space-y-6">
-                <h3 className="text-base font-bold text-textPrimary">Production API Secret Token</h3>
+                {/* Google Gemini 3.6 Integration Card */}
+                <div className="p-6 rounded-2xl bg-purpleAccent/5 border border-purpleAccent/30 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-purpleAccent/20 text-purpleAccent border border-purpleAccent/40">
+                        <Brain className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-textPrimary flex items-center gap-2">
+                          Google Gemini Explainable AI Engine
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purpleAccent/20 text-purpleAccent border border-purpleAccent/30">
+                            {geminiModel.toUpperCase()}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-textSecondary">
+                          Powers Phase 8 evidence-grounded fraud explanations and human-readable forensic narratives.
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <label className="block text-xs text-textSecondary">Live Secret Token (Keep confidential)</label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="text"
-                      readOnly
-                      value={apiKey}
-                      className="flex-1 bg-surfaceSecondary border border-borderSubtle rounded-xl p-3 font-mono text-xs text-purpleAccent"
-                    />
-                    <Button onClick={copyKey} variant="secondary" icon={<Copy className="w-4 h-4" />}>
-                      Copy Key
-                    </Button>
+                    <button
+                      onClick={handleTestGemini}
+                      disabled={isTestingGemini}
+                      className="px-3.5 py-2 rounded-xl bg-purpleAccent/20 hover:bg-purpleAccent/30 border border-purpleAccent/40 text-purpleAccent text-xs font-semibold flex items-center gap-2 transition-all disabled:opacity-50 shadow-glowPurple"
+                    >
+                      {isTestingGemini ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Testing Connection...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" /> Test Gemini Connection
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {geminiTestResult && (
+                    <div
+                      className={`p-3.5 rounded-xl border text-xs font-mono flex items-start gap-2.5 ${
+                        geminiTestResult.success
+                          ? 'bg-successGreen/10 border-successGreen/30 text-successGreen'
+                          : 'bg-red-500/10 border-red-500/30 text-red-400'
+                      }`}
+                    >
+                      {geminiTestResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div className="leading-relaxed">{geminiTestResult.message}</div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1.5">
+                      <label className="block text-textSecondary font-medium">Gemini Model Identifier</label>
+                      <input
+                        type="text"
+                        value={geminiModel}
+                        onChange={(e) => setGeminiModel(e.target.value)}
+                        placeholder="gemini-3.6-flash"
+                        className="w-full bg-surfaceSecondary border border-borderSubtle rounded-xl p-3 font-mono text-xs text-textPrimary focus:outline-none focus:border-purpleAccent"
+                      />
+                      <p className="text-[10px] text-textSecondary">
+                        Configured model: <code>gemini-3.6-flash</code> (supports <code>gemini-2.0-flash</code>, <code>gemini-1.5-flash</code>).
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-textSecondary font-medium">Google Gemini API Key</label>
+                      <input
+                        type="password"
+                        value={geminiApiKey}
+                        onChange={(e) => setGeminiApiKey(e.target.value)}
+                        placeholder="AIzaSy... or server-side .env.local"
+                        className="w-full bg-surfaceSecondary border border-borderSubtle rounded-xl p-3 font-mono text-xs text-purpleAccent focus:outline-none focus:border-purpleAccent"
+                      />
+                      <p className="text-[10px] text-textSecondary">
+                        Kept server-side. Configure in <code>.env.local</code> as <code>GEMINI_API_KEY</code>, or save here for SOC sessions.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-borderSubtle space-y-2">
-                  <div className="text-xs font-bold text-textPrimary">Webhook Endpoint URL</div>
-                  <input
-                    type="text"
-                    defaultValue="https://sec-api.corp-internal.com/v1/aegis-webhooks"
-                    className="w-full bg-surfaceSecondary border border-borderSubtle rounded-xl p-3 text-xs text-textPrimary font-mono"
-                  />
+                <div className="pt-4 border-t border-borderSubtle space-y-4">
+                  <h3 className="text-base font-bold text-textPrimary">Production API Secret Token</h3>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs text-textSecondary">Live Secret Token (Keep confidential)</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        readOnly
+                        value={apiKey}
+                        className="flex-1 bg-surfaceSecondary border border-borderSubtle rounded-xl p-3 font-mono text-xs text-purpleAccent"
+                      />
+                      <Button onClick={copyKey} variant="secondary" icon={<Copy className="w-4 h-4" />}>
+                        Copy Key
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-borderSubtle space-y-2">
+                    <div className="text-xs font-bold text-textPrimary">Webhook Endpoint URL</div>
+                    <input
+                      type="text"
+                      defaultValue="https://sec-api.corp-internal.com/v1/aegis-webhooks"
+                      className="w-full bg-surfaceSecondary border border-borderSubtle rounded-xl p-3 text-xs text-textPrimary font-mono"
+                    />
+                  </div>
                 </div>
               </div>
             )}

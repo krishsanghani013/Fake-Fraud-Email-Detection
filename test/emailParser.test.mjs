@@ -3161,6 +3161,46 @@ async function runAll() {
     assert.equal(result.assessment.riskLevel, 'LOW');
   });
 
+  // PHASE 8 - TEST 26: Gemini 3.6 model configuration default & override
+  await runTest('PHASE 8 - TEST 26: Gemini 3.6 model configuration default & override', async () => {
+    const parsed = parseRawEmail(sampleRawEmailPhase8);
+    const validResponse = createSampleValidAiResponse(parsed.data);
+
+    // Default without model option should be gemini-3.6-flash
+    const defaultRes = await generateAiAnalysis(parsed.data, { mockResponse: validResponse });
+    assert.equal(defaultRes.model, process.env.GEMINI_MODEL || 'gemini-3.6-flash');
+
+    // Override with custom model
+    const overrideRes = await generateAiAnalysis(parsed.data, {
+      mockResponse: validResponse,
+      model: 'gemini-3.6-flash'
+    });
+    assert.equal(overrideRes.model, 'gemini-3.6-flash');
+  });
+
+  // PHASE 8 - TEST 27: POST /api/ai-analysis with Gemini 3.6 model handling
+  await runTest('PHASE 8 - TEST 27: POST /api/ai-analysis with Gemini 3.6 model handling', async () => {
+    const parsed = parseRawEmail(sampleRawEmailPhase8);
+    const validResponse = createSampleValidAiResponse(parsed.data);
+
+    const req = new Request('http://localhost:3000/api/ai-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        emailData: parsed.data,
+        model: 'gemini-3.6-flash',
+        mockResponse: validResponse
+      })
+    });
+
+    const res = await aiAnalysisRoute(req);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.success, true);
+    assert.equal(body.aiAnalysis.model, 'gemini-3.6-flash');
+    assert.equal(body.aiAnalysis.status, AI_STATUS.AVAILABLE);
+  });
+
   // ---------------------------------------------------------------------------
   // SUMMARY
   // ---------------------------------------------------------------------------

@@ -73,9 +73,11 @@ export async function POST(request) {
     }
 
     const options = {
-      apiKey: process.env.GEMINI_API_KEY,
-      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
-      timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS) || 8000,
+      apiKey: body.apiKey || process.env.GEMINI_API_KEY,
+      model: body.model || process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+      timeoutMs: Number(body.timeoutMs) || Number(process.env.GEMINI_TIMEOUT_MS) || 30000,
+      allowFallback: body.allowFallback !== false,
+      forceFallback: Boolean(body.forceFallback),
       mockResponse: body.mockResponse || null,
       mockResponseJson: body.mockResponseJson || null
     };
