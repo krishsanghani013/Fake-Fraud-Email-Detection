@@ -2176,6 +2176,201 @@ async function runAll() {
     assert.equal(result.data.risk.contributions.length, 0);
   });
 
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 23: Credential harvesting lure contributes +25 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 23: Credential harvesting lure contributes +25 points', () => {
+    const raw = [
+      'From: user@company.example',
+      'To: dest@company.example',
+      'Subject: Please verify your account',
+      '',
+      'Hello, please click here to verify your credentials and confirm your password.'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contrib = result.data.risk.contributions.find((c) => c.id === 'PHISHING_CREDENTIAL_HARVESTING');
+    assert.ok(contrib, 'Must detect PHISHING_CREDENTIAL_HARVESTING');
+    assert.equal(contrib.points, 25);
+    assert.equal(contrib.category, 'phishing_heuristics');
+    assert.ok(result.data.risk.summary.categories.phishing_heuristics >= 25);
+    assert.equal(result.data.risk.level, 'MEDIUM');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 24: Account compromise and urgency threats contribute +20 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 24: Account compromise and urgency threats contribute +20 points', () => {
+    const raw = [
+      'From: alert@external.example',
+      'To: dest@company.example',
+      'Subject: Security Alert: Unauthorized access detected',
+      '',
+      'Your account has been suspended due to unauthorized activity. Immediate action is required within 24 hours.'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contrib = result.data.risk.contributions.find((c) => c.id === 'PHISHING_ACCOUNT_SUSPENSION_URGENCY');
+    assert.ok(contrib, 'Must detect PHISHING_ACCOUNT_SUSPENSION_URGENCY');
+    assert.equal(contrib.points, 20);
+    assert.equal(contrib.category, 'phishing_heuristics');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 25: Financial wire fraud and invoice scam contribute +25 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 25: Financial wire fraud and invoice scam contribute +25 points', () => {
+    const raw = [
+      'From: vendor@client-corp.example',
+      'To: finance@client-corp.example',
+      'Subject: Invoice Paid: $1,249.00 USD to Coinbase Inc',
+      '',
+      'Please wire the funds to the attached offshore escrow account. If unauthorized, call our fraud desk immediately.'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contrib = result.data.risk.contributions.find((c) => c.id === 'PHISHING_FINANCIAL_WIRE_FRAUD');
+    assert.ok(contrib, 'Must detect PHISHING_FINANCIAL_WIRE_FRAUD');
+    assert.equal(contrib.points, 25);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 26: Brand display name impersonation (PayPal) on unaligned domain
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 26: Brand display name impersonation (PayPal) on unaligned domain', () => {
+    const raw = [
+      'From: "PayPal Security Desk" <service-notify@paypaI-support-update.org>',
+      'To: victim@example.com',
+      'Subject: Notification Update',
+      '',
+      'Please review your account status.'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contrib = result.data.risk.contributions.find((c) => c.id === 'PHISHING_BRAND_IMPERSONATION');
+    assert.ok(contrib, 'Must detect PHISHING_BRAND_IMPERSONATION');
+    assert.equal(contrib.points, 20);
+    assert.equal(contrib.evidence.brandName, 'PayPal');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 27: Deceptive HTML anchor text vs href mismatch contributes +25 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 27: Deceptive HTML anchor text vs href mismatch contributes +25 points', () => {
+    const raw = [
+      'From: notifications@service.example',
+      'To: user@example.com',
+      'Subject: Account Status Update',
+      'Content-Type: text/html; charset="UTF-8"',
+      '',
+      '<html><body><p>Please log in here: <a href="https://evil-phish-portal.org/login">https://paypal.com/signin</a></p></body></html>'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contrib = result.data.risk.contributions.find((c) => c.id === 'PHISHING_DECEPTIVE_URL_ANCHOR_MISMATCH');
+    assert.ok(contrib, 'Must detect PHISHING_DECEPTIVE_URL_ANCHOR_MISMATCH');
+    assert.equal(contrib.points, 25);
+    assert.equal(contrib.evidence.displayedAnchorDomain, 'paypal.com');
+    assert.equal(contrib.evidence.actualTargetHost, 'evil-phish-portal.org');
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 28: Dangerous executable and macro-enabled attachments contribute risk points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 28: Dangerous executable and macro-enabled attachments contribute risk points', () => {
+    const raw = [
+      'From: sender@example.com',
+      'To: recipient@example.com',
+      'Subject: Attached Payload',
+      'MIME-Version: 1.0',
+      'Content-Type: multipart/mixed; boundary="BOUNDARY123"',
+      '',
+      '--BOUNDARY123',
+      'Content-Type: text/plain',
+      '',
+      'Please inspect the attachment.',
+      '--BOUNDARY123',
+      'Content-Type: application/x-msdownload; name="invoice_scanner.exe"',
+      'Content-Disposition: attachment; filename="invoice_scanner.exe"',
+      '',
+      'TVqQAAMAAAAEAAAA...',
+      '--BOUNDARY123--'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contrib = result.data.risk.contributions.find((c) => c.id === 'PHISHING_DANGEROUS_ATTACHMENT_EXTENSION');
+    assert.ok(contrib, 'Must detect PHISHING_DANGEROUS_ATTACHMENT_EXTENSION');
+    assert.equal(contrib.points, 25);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 29: Double extension attachment evasion contributes +25 points
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 29: Double extension attachment evasion contributes +25 points', () => {
+    const raw = [
+      'From: sender@example.com',
+      'To: recipient@example.com',
+      'Subject: Statement',
+      'MIME-Version: 1.0',
+      'Content-Type: multipart/mixed; boundary="BOUNDARY456"',
+      '',
+      '--BOUNDARY456',
+      'Content-Type: text/plain',
+      '',
+      'See statement.',
+      '--BOUNDARY456',
+      'Content-Type: application/octet-stream; name="Bank_Statement.pdf.exe"',
+      'Content-Disposition: attachment; filename="Bank_Statement.pdf.exe"',
+      '',
+      'TVqQAAMAAAAEAAAA...',
+      '--BOUNDARY456--'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    const contrib = result.data.risk.contributions.find((c) => c.id === 'PHISHING_DOUBLE_EXTENSION_ATTACHMENT');
+    assert.ok(contrib, 'Must detect PHISHING_DOUBLE_EXTENSION_ATTACHMENT');
+    assert.equal(contrib.points, 25);
+  });
+
+  // ---------------------------------------------------------------------------
+  // PHASE 6 - TEST 30: Multi-vector PayPal phishing email produces HIGH/CRITICAL risk
+  // ---------------------------------------------------------------------------
+  await runTest('PHASE 6 - TEST 30: Multi-vector PayPal phishing email produces HIGH/CRITICAL risk', () => {
+    const raw = [
+      'From: PayPal Billing Support <service-notify@paypaI-support-update.org>',
+      'Reply-To: support@paypaI-support-update.org',
+      'To: victim@company.com',
+      'Subject: Invoice Paid: $1,249.00 USD to Coinbase Inc (Call +1-888-901-2281 if unauthorized)',
+      'Date: Sat, 12 Sep 2026 07:11:55 -0700',
+      'Message-ID: <20260912.paypal.77102@paypaI-support-update.org>',
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset="UTF-8"',
+      '',
+      'Thank you for your purchase. $1,249.00 USD has been automatically charged to your PayPal balance for 0.42 BTC on Coinbase Inc.',
+      'If you did not authorize this payment or suspect unauthorized payment on your account, please call our fraud desk immediately at +1-888-901-2281.',
+      'You may also review or cancel this invoice directly at:',
+      'https://paypaI-support-update.org/dispute-login'
+    ].join('\r\n');
+
+    const result = parseRawEmail(raw);
+    assert.equal(result.success, true);
+    // Verified multi-vector contributions:
+    // 1. PHISHING_BRAND_IMPERSONATION (+20)
+    // 2. PHISHING_FINANCIAL_WIRE_FRAUD (+25)
+    // 3. PHISHING_ACCOUNT_SUSPENSION_URGENCY (+20)
+    // 4. PHISHING_LOOKALIKE_BRAND_DOMAIN (+15)
+    assert.ok(result.data.risk.totalScore >= 60, `Score must be elevated (received ${result.data.risk.totalScore})`);
+    assert.ok(result.data.risk.level === 'HIGH' || result.data.risk.level === 'CRITICAL');
+    assert.ok(result.data.risk.summary.categories.phishing_heuristics >= 60);
+  });
+
   // ===========================================================================
   // PHASE 7: THREAT INTELLIGENCE & REPUTATION ENRICHMENT TESTS
   // ===========================================================================
@@ -2587,9 +2782,9 @@ async function runAll() {
 
     const parsed = parseRawEmail(raw);
     assert.equal(parsed.success, true);
-    // Baseline risk before threat intelligence has DMARC fail (+20) and From vs Reply-To (+15)
-    assert.equal(parsed.data.risk.totalScore, 35);
-    assert.equal(parsed.data.risk.level, 'MEDIUM');
+    // Baseline risk before threat intelligence has DMARC fail (+20), From vs Reply-To (+15), and phishing heuristics (+40) = 75
+    assert.equal(parsed.data.risk.totalScore, 75);
+    assert.equal(parsed.data.risk.level, 'HIGH');
     assert.equal(parsed.data.threatIntel.status, 'unavailable');
     assert.equal(parsed.data.threatIntel.summary.maliciousCount, 0);
   });

@@ -176,21 +176,21 @@ ${suggestedAnalystAction}`;
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[11px] font-mono px-3 py-1 rounded-lg bg-darkBg/60 border border-current">
-            Category: <strong className="text-white">{threatCategory.replace(/_/g, ' ')}</strong>
+          <span className="text-[11px] font-mono px-3 py-1 rounded-lg bg-surfaceSecondary border border-current">
+            Category: <strong className="text-slate-900 dark:text-white">{threatCategory.replace(/_/g, ' ')}</strong>
           </span>
         </div>
       </div>
 
       {/* 2. Header Overview & Dual Gauge Display */}
-      <Card className="p-6 border border-white/10 relative overflow-hidden bg-gradient-to-br from-surface to-surfaceSecondary">
+      <Card className="p-6 border border-borderSubtle relative overflow-hidden bg-gradient-to-br from-surface to-surfaceSecondary">
         <div
           className={`absolute -top-24 -right-24 w-60 h-60 rounded-full blur-3xl opacity-20 pointer-events-none ${
             isCriticalThreat ? 'bg-red-500' : isModerateThreat ? 'bg-amber-500' : 'bg-emerald-500'
           }`}
         />
 
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-white/10">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-borderSubtle">
           <div className="space-y-2.5 max-w-xl">
             {/* Status Pills */}
             <div className="flex flex-wrap items-center gap-2">
@@ -232,7 +232,7 @@ ${suggestedAnalystAction}`;
                 {isHarmful ? 'HARMFUL THREAT' : 'BENIGN / SAFE'}
               </span>
 
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-textSecondary">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 border border-borderSubtle text-textSecondary">
                 Model: {model}
               </span>
 
@@ -257,7 +257,7 @@ ${suggestedAnalystAction}`;
           </div>
 
           {/* Dual Score Gauges (Authorship + Threat) */}
-          <div className="flex flex-wrap items-center gap-4 bg-darkBg/70 p-4 rounded-2xl border border-white/10 shrink-0">
+          <div className="flex flex-wrap items-center gap-4 bg-slate-100/70 dark:bg-slate-900/70 p-4 rounded-2xl border border-borderSubtle shrink-0">
             {/* Gauge 1: AI Probability */}
             <div className="text-center px-2">
               <div className="text-[10px] font-mono uppercase tracking-wider text-textSecondary mb-1 flex items-center justify-center gap-1">
@@ -275,7 +275,7 @@ ${suggestedAnalystAction}`;
               </div>
             </div>
 
-            <div className="h-12 w-[1px] bg-white/10" />
+            <div className="h-12 w-[1px] bg-borderSubtle" />
 
             {/* Gauge 2: Threat & Harm Score */}
             <div className="text-center px-2">
@@ -294,13 +294,13 @@ ${suggestedAnalystAction}`;
               </div>
             </div>
 
-            <div className="h-12 w-[1px] bg-white/10" />
+            <div className="h-12 w-[1px] bg-borderSubtle" />
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-2">
               <button
                 onClick={copyReport}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surfaceSecondary hover:bg-white/10 border border-borderSubtle text-[11px] font-mono text-textPrimary transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surfaceSecondary hover:bg-slate-200 dark:hover:bg-slate-800 border border-borderSubtle text-[11px] font-mono text-textPrimary transition-all"
               >
                 <Copy className="w-3 h-3 text-purpleAccent" /> Copy Report
               </button>
@@ -330,7 +330,7 @@ ${suggestedAnalystAction}`;
                 {threatScore}/100
               </span>
             </div>
-            <div className="w-full bg-darkBg/80 h-2 rounded-full overflow-hidden border border-white/5">
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden border border-borderSubtle">
               <div
                 className={`h-full transition-all duration-500 ${
                   threatScore >= 70 ? 'bg-red-500' : threatScore >= 35 ? 'bg-amber-500' : 'bg-emerald-500'
@@ -351,7 +351,7 @@ ${suggestedAnalystAction}`;
               </span>
               <span className="font-bold text-textPrimary">CV: {metrics.burstiness?.cv ?? '0.45'}</span>
             </div>
-            <div className="w-full bg-darkBg/80 h-2 rounded-full overflow-hidden border border-white/5">
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden border border-borderSubtle">
               <div
                 className={`h-full transition-all duration-500 ${
                   (metrics.burstiness?.cv ?? 0.5) < 0.35
@@ -378,7 +378,7 @@ ${suggestedAnalystAction}`;
                 {metrics.perplexity?.predictabilityScore ?? 50}%
               </span>
             </div>
-            <div className="w-full bg-darkBg/80 h-2 rounded-full overflow-hidden border border-white/5">
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden border border-borderSubtle">
               <div
                 className={`h-full transition-all duration-500 ${
                   (metrics.perplexity?.predictabilityScore ?? 50) > 70
@@ -436,7 +436,7 @@ ${suggestedAnalystAction}`;
               <button
                 onClick={() => setFilterLevel('ALL')}
                 className={`px-2 py-0.5 rounded ${
-                  filterLevel === 'ALL' ? 'bg-purpleAccent text-white' : 'text-textSecondary hover:text-white'
+                  filterLevel === 'ALL' ? 'bg-purpleAccent text-white' : 'text-textSecondary hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 All ({perSentenceAnalysis.length})
@@ -444,7 +444,7 @@ ${suggestedAnalystAction}`;
               <button
                 onClick={() => setFilterLevel('DECEPTIVE_ONLY')}
                 className={`px-2 py-0.5 rounded ${
-                  filterLevel === 'DECEPTIVE_ONLY' ? 'bg-red-500 text-white' : 'text-textSecondary hover:text-white'
+                  filterLevel === 'DECEPTIVE_ONLY' ? 'bg-red-500 text-white' : 'text-textSecondary hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Deceptive ({perSentenceAnalysis.filter((s) => s.isDeceptive).length})
@@ -452,7 +452,7 @@ ${suggestedAnalystAction}`;
               <button
                 onClick={() => setFilterLevel('AI_ONLY')}
                 className={`px-2 py-0.5 rounded ${
-                  filterLevel === 'AI_ONLY' ? 'bg-purpleAccent text-white' : 'text-textSecondary hover:text-white'
+                  filterLevel === 'AI_ONLY' ? 'bg-purpleAccent text-white' : 'text-textSecondary hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 High AI
@@ -460,7 +460,7 @@ ${suggestedAnalystAction}`;
               <button
                 onClick={() => setFilterLevel('HUMAN_ONLY')}
                 className={`px-2 py-0.5 rounded ${
-                  filterLevel === 'HUMAN_ONLY' ? 'bg-emerald-500 text-white' : 'text-textSecondary hover:text-white'
+                  filterLevel === 'HUMAN_ONLY' ? 'bg-emerald-500 text-white' : 'text-textSecondary hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Human
@@ -489,7 +489,7 @@ ${suggestedAnalystAction}`;
         </div>
 
         {/* Heatmap Canvas */}
-        <div className="p-4 rounded-2xl bg-darkBg/60 border border-borderSubtle leading-relaxed font-sans text-xs space-y-2 max-h-[350px] overflow-y-auto">
+        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-borderSubtle leading-relaxed font-sans text-xs space-y-2 max-h-[350px] overflow-y-auto">
           {filteredSentences.length === 0 ? (
             <p className="text-textSecondary italic">No sentences match the selected filter.</p>
           ) : (
@@ -509,10 +509,10 @@ ${suggestedAnalystAction}`;
                         : ''
                     } ${
                       isDeceptive
-                        ? 'bg-red-500/20 border-red-500/50 text-red-200 hover:bg-red-500/30'
+                        ? 'bg-red-500/20 border-red-500/50 text-red-700 dark:text-red-200 hover:bg-red-500/30'
                         : isItemHighAi
-                        ? 'bg-purpleAccent/15 border-purpleAccent/30 text-purple-200 hover:bg-purpleAccent/25'
-                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200 hover:bg-emerald-500/20'
+                        ? 'bg-purpleAccent/15 border-purpleAccent/30 text-purple-700 dark:text-purple-200 hover:bg-purpleAccent/25'
+                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-500/20'
                     }`}
                   >
                     {isDeceptive && (
@@ -555,7 +555,7 @@ ${suggestedAnalystAction}`;
               </div>
               <button
                 onClick={() => setSelectedSentenceIndex(null)}
-                className="text-textSecondary hover:text-white text-[11px] font-mono"
+                className="text-textSecondary hover:text-slate-900 dark:hover:text-white text-[11px] font-mono"
               >
                 Close ×
               </button>
@@ -645,7 +645,7 @@ ${suggestedAnalystAction}`;
                     </span>
                   </div>
                   {ti.evidence && (
-                    <div className="text-[11px] font-mono text-textPrimary bg-darkBg/60 px-2 py-1 rounded border border-white/5">
+                    <div className="text-[11px] font-mono text-textPrimary bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded border border-borderSubtle">
                       "{ti.evidence}"
                     </div>
                   )}
@@ -691,7 +691,7 @@ ${suggestedAnalystAction}`;
                     <span className="font-mono text-warningYellow font-bold">
                       "{h.matched}"
                     </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-textSecondary">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary">
                       {h.category}
                     </span>
                   </div>

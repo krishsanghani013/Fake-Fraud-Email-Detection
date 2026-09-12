@@ -2,50 +2,45 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Search, Bell, Shield, Command, Plus, Radio } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Search, Bell, Plus, HelpCircle } from 'lucide-react';
 import { CommandPalette } from '../ui/CommandPalette';
 import { MOCK_NOTIFICATIONS } from '../../data/mockData';
 import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/nextjs';
+import { Button } from '../ui/Button';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 export function AppHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const [cmdOpen, setCmdOpen] = useState(false);
   const unreadCount = MOCK_NOTIFICATIONS.filter((n) => !n.read).length;
 
   const getPageTitle = () => {
-    if (pathname === '/dashboard') return 'Executive Threat Dashboard';
+    if (pathname === '/dashboard') return 'Forensic Dashboard';
     if (pathname === '/upload') return 'Email Analysis Workbench';
-    if (pathname === '/scanning') return 'Live AI Threat Scanning';
-    if (pathname.startsWith('/results')) return 'Detailed Security Audit Report';
-    if (pathname === '/ai-explanation') return 'Explainable AI Neural Breakdown';
-    if (pathname === '/risk-indicators') return '13 AI Threat Risk Indicators';
-    if (pathname === '/investigation-timeline') return 'Incident Lifecycle Timeline';
-    if (pathname === '/analytics') return 'Threat Intelligence Analytics';
-    if (pathname === '/cases') return 'Incident Cases Workbench';
-    if (pathname === '/reports') return 'Security Audit & Compliance Reports';
-    if (pathname === '/notifications') return 'Real-time Security Alerts';
-    if (pathname === '/settings') return 'Organization & Security Settings';
-    if (pathname === '/auth') return 'Authentication Portal';
-    return 'AEGIS AI Platform';
+    if (pathname.startsWith('/results')) return 'Forensic Audit Report';
+    if (pathname === '/reports') return 'History & Incident Reports';
+    if (pathname === '/settings') return 'Platform Settings';
+    if (pathname === '/ai-explanation') return 'Explainable AI Insights';
+    if (pathname === '/ai-detector') return 'Dual-Matrix AI Content Detector';
+    if (pathname === '/risk-indicators') return 'Forensic Risk Indicators';
+    if (pathname === '/cases') return 'Incident Investigations';
+    return 'Aegis Forensics';
   };
 
   return (
     <>
-      <header className="sticky top-0 z-30 w-full h-16 glass-panel border-b border-borderSubtle px-6 flex items-center justify-between">
+      <header className="sticky top-0 z-30 w-full h-16 bg-white dark:bg-[#1E293B] border-b border-[#E2E8F0] dark:border-[#334155] px-6 flex items-center justify-between shadow-sm transition-colors duration-200">
         {/* Left: Title & Status */}
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-base font-semibold text-textPrimary flex items-center gap-2">
+            <h1 className="text-base font-bold text-[#0F172A] dark:text-[#FAFBFC] tracking-tight">
               {getPageTitle()}
             </h1>
-            <div className="flex items-center gap-2 text-[11px] text-textSecondary font-mono">
-              <span className="inline-flex items-center gap-1 text-successGreen">
-                <Radio className="w-3 h-3 animate-pulse" /> Live AI Engine Active
-              </span>
-              <span>•</span>
-              <span>Model v4.9 (99.8% Precision)</span>
-            </div>
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
+              Deterministic RFC 5322 & AI Multilayer Forensics
+            </p>
           </div>
         </div>
 
@@ -53,56 +48,78 @@ export function AppHeader() {
         <div className="hidden md:flex items-center">
           <button
             onClick={() => setCmdOpen(true)}
-            className="flex items-center gap-3 px-4 py-1.5 rounded-xl bg-surfaceSecondary/80 border border-borderSubtle hover:border-primaryBlue/40 text-textSecondary text-xs transition-all w-80 shadow-inner group"
+            className="flex items-center gap-3 px-3.5 py-2 rounded-lg bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E2E8F0] dark:border-[#334155] hover:border-[#3B82F6]/50 text-[#64748B] dark:text-[#94A3B8] text-xs transition-all w-80 group cursor-pointer"
           >
-            <Search className="w-3.5 h-3.5 text-primaryBlue group-hover:scale-110 transition-transform" />
-            <span className="flex-1 text-left">Search emails, IPs, threats...</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-textPrimary text-[10px] font-mono flex items-center gap-0.5">
-              <Command className="w-2.5 h-2.5" /> K
+            <Search className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8] group-hover:text-[#3B82F6] transition-colors" />
+            <span className="flex-1 text-left">Search emails, IPs, headers...</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-[#E2E8F0] dark:border-[#334155] text-[10px] text-slate-500 dark:text-slate-400 font-mono shadow-xs">
+              ⌘K
             </kbd>
           </button>
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3">
-          <Link href="/upload">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-primaryBlue to-purpleAccent text-white text-xs font-semibold shadow-glowBlue hover:opacity-90 transition-opacity">
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Scan</span>
-            </button>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/upload"
+            prefetch={true}
+            onMouseEnter={() => router.prefetch('/upload')}
+          >
+            <Button size="sm" variant="primary" icon={<Plus className="w-3.5 h-3.5" />}>
+              Analyze Email
+            </Button>
           </Link>
 
+          {/* Cool Theme Toggle */}
+          <ThemeToggle />
+
           {/* Notifications Link */}
-          <Link href="/notifications" className="relative p-2 rounded-xl bg-surfaceSecondary border border-borderSubtle hover:border-white/20 text-textSecondary hover:text-textPrimary transition-colors">
+          <Link
+            href="/notifications"
+            prefetch={true}
+            className="relative p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="Notifications"
+            aria-label="View notifications"
+          >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-dangerRed text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
-                {unreadCount}
-              </span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#EF4444]" />
             )}
           </Link>
+
+          {/* Help link */}
+          <Link
+            href="/#faq"
+            prefetch={true}
+            className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden sm:inline-flex"
+            title="Help Center"
+            aria-label="Help Center"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </Link>
+
+          <div className="h-5 w-px bg-[#E2E8F0] dark:bg-[#334155] hidden sm:block" />
 
           {/* Clerk Auth Controls */}
           <Show when="signed-out">
             <SignInButton mode="modal">
-              <button className="px-3 py-1.5 rounded-xl bg-surfaceSecondary border border-borderSubtle text-xs font-medium text-textPrimary hover:border-white/20 transition-colors">
+              <Button size="sm" variant="secondary">
                 Sign In
-              </button>
+              </Button>
             </SignInButton>
             <SignUpButton mode="modal">
-              <button className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-primaryBlue to-purpleAccent text-white text-xs font-semibold shadow-glowBlue hover:opacity-90 transition-opacity">
+              <Button size="sm" variant="primary">
                 Sign Up
-              </button>
+              </Button>
             </SignUpButton>
           </Show>
           <Show when="signed-in">
-            <UserButton />
+            <UserButton afterSignOutUrl="/" />
           </Show>
         </div>
       </header>
 
-      {/* Command Palette Modal */}
-      <CommandPalette isOpen={cmdOpen} onClose={() => setCmdOpen(false)} />
+      <CommandPalette open={cmdOpen} setOpen={setCmdOpen} />
     </>
   );
 }

@@ -14,26 +14,25 @@ export function Button({
   disabled,
   ...props
 }) {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed select-none focus:outline-none focus:ring-2 focus:ring-primaryBlue/50';
+  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none focus:outline-none focus:ring-2 focus:ring-blue-500/40 active:scale-[0.99] cursor-pointer';
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-xs gap-1.5',
-    md: 'px-4 py-2.5 text-sm gap-2',
-    lg: 'px-6 py-3.5 text-base gap-2.5 font-semibold',
+    sm: 'h-8 px-3 text-xs gap-1.5',
+    md: 'h-10 px-5 text-sm gap-2',
+    lg: 'h-12 px-6 text-base gap-2.5 font-semibold',
   };
 
   const variants = {
-    primary: 'bg-gradient-to-r from-primaryBlue to-purpleAccent text-white shadow-glowBlue hover:opacity-95 hover:shadow-glowPurple active:scale-[0.98]',
-    glow: 'bg-primaryBlue text-white shadow-glowBlue hover:bg-primaryBlue/90 active:scale-[0.98]',
-    secondary: 'bg-surfaceSecondary/90 text-textPrimary border border-borderSubtle hover:bg-surfaceSecondary hover:border-primaryBlue/40 active:scale-[0.98]',
-    outline: 'border border-borderSubtle bg-transparent text-textPrimary hover:bg-surfaceSecondary hover:border-white/20 active:scale-[0.98]',
-    ghost: 'text-textSecondary hover:text-textPrimary hover:bg-white/5 active:scale-[0.98]',
-    danger: 'bg-dangerRed/10 text-dangerRed border border-dangerRed/30 hover:bg-dangerRed/20 active:scale-[0.98]',
+    primary: 'bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-sm active:bg-[#1D4ED8]',
+    secondary: 'bg-[#F3F4F6] dark:bg-slate-800 text-[#0F172A] dark:text-[#FAFBFC] border border-[#D1D5DB] dark:border-slate-700 hover:bg-[#E5E7EB] dark:hover:bg-slate-700 shadow-sm',
+    danger: 'bg-[#EF4444] text-white hover:bg-[#DC2626] shadow-sm',
+    ghost: 'bg-transparent text-[#3B82F6] dark:text-blue-400 hover:bg-[#EFF6FF] dark:hover:bg-blue-950/40',
+    outline: 'border border-[#CBD5E1] dark:border-slate-700 bg-white dark:bg-slate-800 text-[#0F172A] dark:text-[#FAFBFC] hover:bg-[#F8FAFC] dark:hover:bg-slate-700/80',
   };
 
   return (
     <button
-      className={twMerge(clsx(baseStyles, sizes[size], variants[variant], className))}
+      className={twMerge(clsx(baseStyles, sizes[size], variants[variant] || variants.primary, className))}
       disabled={disabled || loading}
       {...props}
     >

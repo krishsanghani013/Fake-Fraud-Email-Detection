@@ -16,6 +16,7 @@ import EvidenceCard from './EvidenceCard';
 
 const FILTER_TABS = [
   { id: 'all', label: 'All Evidence' },
+  { id: 'phishing', label: 'Phishing & Deception' },
   { id: 'ai', label: 'AI Content Analysis' },
   { id: 'authentication', label: 'Authentication' },
   { id: 'identity', label: 'Sender Identity' },
@@ -37,6 +38,7 @@ export default function WhyThisScore({
   const filteredEvidence = safeEvidence.filter((item) => {
     if (selectedFilter === 'all') return true;
     const cat = String(item.category || '').toLowerCase();
+    if (selectedFilter === 'phishing') return cat.includes('phish') || cat.includes('decept');
     if (selectedFilter === 'ai') return cat.includes('ai') || cat.includes('content');
     if (selectedFilter === 'authentication') return cat.includes('auth') || cat.includes('spf') || cat.includes('dkim') || cat.includes('dmarc');
     if (selectedFilter === 'identity') return cat.includes('ident') || cat.includes('sender') || cat.includes('mismatch');
@@ -55,10 +57,11 @@ export default function WhyThisScore({
 
   const activeSteps = steps && steps.length > 0 ? steps : defaultSteps;
 
-  const aiScore = categoryScores?.aiContent?.score ?? 0;
-  const threatScore = categoryScores?.threatIntel?.score ?? 0;
+  const aiScore = categoryScores?.aiContent?.score ?? categoryScores?.ai?.score ?? 0;
+  const threatScore = categoryScores?.threatIntel?.score ?? categoryScores?.threat_intelligence?.score ?? 0;
   const authScore = categoryScores?.authentication?.score ?? 0;
-  const idScore = categoryScores?.senderIdentity?.score ?? 0;
+  const idScore = categoryScores?.senderIdentity?.score ?? categoryScores?.sender_identity?.score ?? 0;
+  const phishScore = categoryScores?.phishing_heuristics?.score ?? categoryScores?.phishing?.score ?? 0;
 
   return (
     <div className="space-y-6 rounded-3xl border border-borderSubtle bg-surface p-6 md:p-8 shadow-sm">
@@ -99,7 +102,7 @@ export default function WhyThisScore({
         </div>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 p-3 rounded-2xl bg-surfaceSecondary border border-borderSubtle">
           {activeSteps.map((s, idx) => (
-            <div key={idx} className="relative flex flex-col justify-between p-3 rounded-xl bg-darkBg/60 border border-white/5">
+            <div key={idx} className="relative flex flex-col justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-borderSubtle">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[10px] font-mono font-bold w-5 h-5 rounded-full bg-purpleAccent/20 text-purpleAccent flex items-center justify-center">
                   {s.step}
@@ -120,14 +123,29 @@ export default function WhyThisScore({
         <div className="text-[11px] font-mono uppercase tracking-wider text-textSecondary font-semibold">
           Vector Contribution Budgets (Max 100 Pts Total)
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Phishing & Content Deception */}
+          <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-textPrimary">Phishing Heuristics</span>
+              <span className="font-mono font-bold text-amber-500 dark:text-amber-400">{phishScore} pts</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-amber-500 transition-all duration-500 rounded-full"
+                style={{ width: `${Math.min(100, (phishScore / 50) * 100)}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-textSecondary font-mono">Credential Traps & Lures</div>
+          </div>
+
           {/* AI Content Analysis (30 pts max) */}
           <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-textPrimary">AI Content & Deception</span>
               <span className="font-mono font-bold text-purpleAccent">{aiScore} / 30 pts</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-darkBg overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
               <div
                 className="h-full bg-purpleAccent transition-all duration-500 rounded-full"
                 style={{ width: `${Math.min(100, (aiScore / 30) * 100)}%` }}
@@ -142,7 +160,7 @@ export default function WhyThisScore({
               <span className="font-medium text-textPrimary">Threat Intelligence</span>
               <span className="font-mono font-bold text-cyanAccent">{threatScore} / 30 pts</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-darkBg overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
               <div
                 className="h-full bg-cyanAccent transition-all duration-500 rounded-full"
                 style={{ width: `${Math.min(100, (threatScore / 30) * 100)}%` }}
@@ -157,7 +175,7 @@ export default function WhyThisScore({
               <span className="font-medium text-textPrimary">Authentication (RFC)</span>
               <span className="font-mono font-bold text-warningYellow">{authScore} / 25 pts</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-darkBg overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
               <div
                 className="h-full bg-warningYellow transition-all duration-500 rounded-full"
                 style={{ width: `${Math.min(100, (authScore / 25) * 100)}%` }}
@@ -172,7 +190,7 @@ export default function WhyThisScore({
               <span className="font-medium text-textPrimary">Sender Alignment</span>
               <span className="font-mono font-bold text-dangerRed">{idScore} / 15 pts</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-darkBg overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
               <div
                 className="h-full bg-dangerRed transition-all duration-500 rounded-full"
                 style={{ width: `${Math.min(100, (idScore / 15) * 100)}%` }}

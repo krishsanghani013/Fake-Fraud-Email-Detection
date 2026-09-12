@@ -164,9 +164,9 @@ export default function EvidenceCard({ item }) {
 
       {/* Observed Evidence Snippet Box */}
       {observedEvidence && (
-        <div className="mt-3 rounded-xl bg-darkBg/90 p-3 border border-borderSubtle text-xs font-mono text-textPrimary relative">
+        <div className="mt-3 rounded-xl bg-slate-50 dark:bg-slate-900/90 p-3 border border-borderSubtle text-xs font-mono text-textPrimary relative">
           <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-borderSubtle text-[9px] uppercase tracking-wider text-textSecondary font-sans font-semibold">
-            <div className="flex items-center gap-1.5 text-purpleAccent">
+            <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-400">
               <Terminal className="h-3 w-3" />
               <span>Observed Forensic Evidence (Quoted Snippet)</span>
             </div>
@@ -179,7 +179,7 @@ export default function EvidenceCard({ item }) {
               <span className="text-[9px] font-mono">{copied ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
-          <pre className="mt-2 whitespace-pre-wrap break-all text-[11px] leading-relaxed text-purpleAccent/90 font-mono select-all">
+          <pre className="mt-2 whitespace-pre-wrap break-all text-[11px] leading-relaxed text-purple-700 dark:text-purple-300 font-mono select-all">
             {observedEvidence}
           </pre>
         </div>

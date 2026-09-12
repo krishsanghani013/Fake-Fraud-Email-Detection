@@ -2,70 +2,80 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Shield,
   LayoutDashboard,
   UploadCloud,
-  FileCheck2,
-  BrainCircuit,
-  Sliders,
-  GitCommit,
-  BarChart3,
-  Briefcase,
-  FileSpreadsheet,
-  Bell,
+  FileText,
   Settings,
+  HelpCircle,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   Sparkles,
-  Lock
+  Sliders,
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { UserButton, useUser, useClerk } from '@clerk/nextjs';
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
 
-  const navItems = [
-    { label: 'Dashboard Overview', href: '/dashboard', icon: LayoutDashboard, badge: null },
+  const primaryNav = [
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Analyze Email', href: '/upload', icon: UploadCloud, badge: 'Scanner' },
-    { label: 'Analysis Report', href: '/results/scan-89421', icon: FileCheck2, badge: null },
-    { label: 'Explainable AI View', href: '/ai-explanation', icon: BrainCircuit, badge: null },
-    { label: 'AI Content Detector', href: '/ai-detector', icon: Sparkles, badge: 'New' },
-    { label: '13 Risk Indicators', href: '/risk-indicators', icon: Sliders, badge: '13' },
-    { label: 'Investigation Timeline', href: '/investigation-timeline', icon: GitCommit, badge: null },
-    { label: 'Threat Analytics', href: '/analytics', icon: BarChart3, badge: null },
-    { label: 'Incident Cases', href: '/cases', icon: Briefcase, badge: '4 Active' },
+    { label: 'History & Reports', href: '/reports', icon: FileText },
+    { label: 'Settings', href: '/settings', icon: Settings },
   ];
 
-  const secondaryItems = [
-    { label: 'Auth Portal', href: '/auth', icon: Lock },
-    { label: 'Landing Page', href: '/', icon: ExternalLink },
+  const forensicTools = [
+    { label: 'AI Content Detector', href: '/ai-detector', icon: Sparkles },
+    { label: '13 Risk Indicators', href: '/risk-indicators', icon: Sliders },
+    { label: 'Explainable AI View', href: '/ai-explanation', icon: HelpCircle },
   ];
+
+  const userName = isLoaded && user
+    ? user.fullName || user.firstName || (user.emailAddresses?.[0]?.emailAddress?.split('@')[0]) || 'Analyst'
+    : 'Analyst';
+
+  const userEmail = isLoaded && user
+    ? user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || 'analyst@aegis.defense'
+    : 'analyst@aegis.defense';
 
   return (
     <aside
       className={clsx(
-        'h-screen sticky top-0 z-40 glass-panel border-r border-borderSubtle transition-all duration-300 flex flex-col justify-between select-none',
-        collapsed ? 'w-20' : 'w-64'
+        'h-screen sticky top-0 z-40 bg-white dark:bg-[#1E293B] border-r border-[#E2E8F0] dark:border-[#334155] shadow-sm transition-all duration-200 flex flex-col justify-between select-none shrink-0',
+        collapsed ? 'w-16' : 'w-[280px]'
       )}
     >
-      {/* Brand Header */}
-      <div>
-        <div className="h-16 px-4 flex items-center justify-between border-b border-borderSubtle">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primaryBlue via-purpleAccent to-cyanAccent flex items-center justify-center shadow-glowBlue shrink-0">
-              <Shield className="w-5 h-5 text-white" />
+      {/* Top Header & Navigation */}
+      <div className="flex flex-col flex-1 min-h-0">
+        {/* Brand Header */}
+        <div className="h-16 px-4 flex items-center justify-between border-b border-[#E2E8F0] dark:border-[#334155]">
+          <Link
+            href="/"
+            prefetch={true}
+            onMouseEnter={() => router.prefetch('/')}
+            className="flex items-center gap-3 min-w-0"
+          >
+            <div className="w-9 h-9 rounded-lg bg-[#3B82F6] flex items-center justify-center text-white shadow-sm shrink-0">
+              <Shield className="w-5 h-5" />
             </div>
             {!collapsed && (
-              <div className="flex flex-col">
-                <span className="text-base font-bold tracking-tight gradient-text-blue font-heading">
-                  AEGIS AI
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-bold tracking-tight text-[#0F172A] dark:text-[#FAFBFC] truncate font-sans">
+                  AEGIS FORENSICS
                 </span>
-                <span className="text-[10px] text-textSecondary font-mono uppercase tracking-wider">
-                  Fraud Email Guard
+                <span className="text-[10px] text-[#64748B] dark:text-[#94A3B8] font-medium tracking-wide uppercase">
+                  Email Fraud Defense
                 </span>
               </div>
             )}
@@ -73,37 +83,52 @@ export function AppSidebar() {
 
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded-lg bg-surfaceSecondary border border-borderSubtle hover:border-primaryBlue/40 text-textSecondary hover:text-textPrimary transition-colors"
+            className="p-1.5 rounded-lg text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#FAFBFC] hover:bg-[#F1F5F9] dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label="Toggle sidebar collapse"
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Primary Navigation List */}
-        <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-12rem)]">
-          <div className={clsx('px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider text-textSecondary', collapsed && 'hidden')}>
-            Platform Navigation
-          </div>
+        {/* Navigation Items */}
+        <nav className="p-3 space-y-1 overflow-y-auto flex-1">
+          {!collapsed && (
+            <div className="px-3 pt-2 pb-1.5 text-[11px] font-semibold text-[#94A3B8] dark:text-slate-400 uppercase tracking-wider">
+              Main Menu
+            </div>
+          )}
 
-          {navItems.map((item) => {
+          {primaryNav.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href.startsWith('/results') && pathname.startsWith('/results'));
+            const isActive = pathname === item.href || (item.href === '/reports' && pathname.startsWith('/reports'));
 
             return (
-              <Link key={item.href} href={item.href}>
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={true}
+                onMouseEnter={() => router.prefetch(item.href)}
+              >
                 <div
                   className={clsx(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all group relative',
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group relative cursor-pointer',
                     isActive
-                      ? 'bg-gradient-to-r from-primaryBlue/20 to-purpleAccent/10 text-white border border-primaryBlue/40 shadow-glowBlue'
-                      : 'text-textSecondary hover:text-textPrimary hover:bg-white/5 border border-transparent'
+                      ? 'bg-[#EFF6FF] dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 font-semibold shadow-sm border border-[#BFDBFE] dark:border-blue-800/80'
+                      : 'text-[#475569] dark:text-slate-300 hover:text-[#0F172A] dark:hover:text-[#FAFBFC] hover:bg-[#F8FAFC] dark:hover:bg-slate-800/60'
                   )}
+                  title={collapsed ? item.label : undefined}
                 >
-                  <Icon className={clsx('w-4 h-4 shrink-0 transition-transform group-hover:scale-110', isActive ? 'text-primaryBlue' : 'text-textSecondary')} />
+                  <Icon
+                    className={clsx(
+                      'w-4 h-4 shrink-0 transition-transform group-hover:scale-105',
+                      isActive ? 'text-[#3B82F6] dark:text-blue-400' : 'text-[#64748B] dark:text-[#94A3B8]'
+                    )}
+                  />
                   {!collapsed && <span className="truncate">{item.label}</span>}
 
                   {!collapsed && item.badge && (
-                    <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-primaryBlue/10 text-primaryBlue border border-primaryBlue/20">
+                    <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DBEAFE] dark:bg-blue-900/60 text-[#1D4ED8] dark:text-blue-300">
                       {item.badge}
                     </span>
                   )}
@@ -112,38 +137,95 @@ export function AppSidebar() {
             );
           })}
 
-          <div className={clsx('pt-4 px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider text-textSecondary', collapsed && 'hidden')}>
-            External & Auth
-          </div>
+          {/* Collapsible Forensic Tools */}
+          {!collapsed && (
+            <div className="pt-4">
+              <button
+                onClick={() => setToolsOpen(!toolsOpen)}
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-semibold text-[#94A3B8] dark:text-slate-400 uppercase tracking-wider hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <span>Forensic Engines</span>
+                <ChevronDown className={clsx('w-3.5 h-3.5 transition-transform', toolsOpen && 'rotate-180')} />
+              </button>
 
-          {secondaryItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.href} href={item.href}>
-                <div className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-textSecondary hover:text-textPrimary hover:bg-white/5 transition-all">
-                  <Icon className="w-4 h-4 shrink-0 text-textSecondary" />
-                  {!collapsed && <span>{item.label}</span>}
+              {toolsOpen && (
+                <div className="mt-1 space-y-1 pl-1">
+                  {forensicTools.map((tool) => {
+                    const Icon = tool.icon;
+                    const isActive = pathname === tool.href;
+                    return (
+                      <Link
+                        key={tool.href}
+                        href={tool.href}
+                        prefetch={true}
+                        onMouseEnter={() => router.prefetch(tool.href)}
+                      >
+                        <div
+                          className={clsx(
+                            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer',
+                            isActive
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                          )}
+                        >
+                          <Icon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                          <span>{tool.label}</span>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
-              </Link>
-            );
-          })}
+              )}
+            </div>
+          )}
+
+          {/* Documentation Link */}
+          <div className="pt-2">
+            <Link href="/#faq">
+              <div
+                className={clsx(
+                  'flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#FAFBFC] hover:bg-[#F8FAFC] dark:hover:bg-slate-800/60 transition-colors',
+                  collapsed && 'justify-center'
+                )}
+                title={collapsed ? 'Help & Docs' : undefined}
+              >
+                <HelpCircle className="w-4 h-4 text-[#64748B] dark:text-[#94A3B8] shrink-0" />
+                {!collapsed && <span>Help & Docs</span>}
+              </div>
+            </Link>
+          </div>
         </nav>
       </div>
 
-      {/* AI Health Footer Box */}
-      {!collapsed && (
-        <div className="p-3 m-3 rounded-2xl bg-gradient-to-br from-surfaceSecondary to-surface border border-borderSubtle text-xs space-y-2 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-textPrimary flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-purpleAccent" /> AI Guard Active
-            </span>
-            <span className="w-2 h-2 rounded-full bg-successGreen animate-pulse" />
+      {/* User Profile & Sign Out Footer */}
+      <div className="p-3 border-t border-[#E2E8F0] dark:border-[#334155] bg-[#FAFBFC] dark:bg-[#1E293B]">
+        <div className={clsx('flex items-center gap-3', collapsed ? 'justify-center' : 'justify-between')}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <UserButton afterSignOutUrl="/" />
+            {!collapsed && (
+              <div className="flex flex-col min-w-0 text-left">
+                <span className="text-xs font-semibold text-[#0F172A] dark:text-[#FAFBFC] truncate">
+                  {userName}
+                </span>
+                <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8] truncate max-w-[140px]">
+                  {userEmail}
+                </span>
+              </div>
+            )}
           </div>
-          <p className="text-[11px] text-textSecondary">
-            99.8% precision across 2.4M verified headers.
-          </p>
+
+          {!collapsed && (
+            <button
+              onClick={() => signOut?.({ redirectUrl: '/' })}
+              className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
-      )}
+      </div>
     </aside>
   );
 }

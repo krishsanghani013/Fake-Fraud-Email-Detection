@@ -3,107 +3,171 @@
 @tailwind utilities;
 
 :root {
-  --font-inter: 'Inter', system-ui, sans-serif;
-  --font-space: 'Space Grotesk', system-ui, sans-serif;
+  --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bg-main: #FAFBFC;
+  --bg-main-rgb: 250 251 252;
+  --text-main: #0F172A;
+  --text-main-rgb: 15 23 42;
+  --border-subtle: #E2E8F0;
+  --border-subtle-rgb: 226 232 240;
+  --surface-card: #FFFFFF;
+  --surface-card-rgb: 255 255 255;
+  --surface-muted: #F8FAFC;
+  --surface-muted-rgb: 248 250 252;
+  --text-muted: #475569;
+  --text-muted-rgb: 71 85 105;
+}
+
+html.dark {
+  --bg-main: #0F172A;
+  --bg-main-rgb: 15 23 42;
+  --text-main: #FAFBFC;
+  --text-main-rgb: 250 251 252;
+  --border-subtle: #334155;
+  --border-subtle-rgb: 51 65 85;
+  --surface-card: #1E293B;
+  --surface-card-rgb: 30 41 59;
+  --surface-muted: #0F172A;
+  --surface-muted-rgb: 15 23 42;
+  --text-muted: #94A3B8;
+  --text-muted-rgb: 148 163 184;
 }
 
 body {
-  background-color: #08090A;
-  color: #F8FAFC;
+  background-color: var(--bg-main);
+  color: var(--text-main);
   font-family: var(--font-inter);
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom Glassmorphism Classes */
-.glass-card {
-  background: rgba(17, 18, 22, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1.25rem;
+/* Aegis Design System Cards & Surfaces */
+.aegis-card {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glass-card-hover {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+html.dark .aegis-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-.glass-card-hover:hover {
-  border-color: rgba(91, 140, 255, 0.3);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(91, 140, 255, 0.15);
-  transform: translateY(-2px);
+/* Glass Card & Panel with dark and light mode contrast */
+.glass-card, .glass-panel {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.glass-panel {
-  background: rgba(22, 24, 29, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+html.dark .glass-card, html.dark .glass-panel {
+  background-color: #1E293B;
+  border-color: #334155;
+  color: #FAFBFC;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 
-.gradient-text-blue {
-  background: linear-gradient(135deg, #5B8CFF 0%, #7C5CFC 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.aegis-card-hover:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
 }
 
-.gradient-text-cyan {
-  background: linear-gradient(135deg, #14B8A6 0%, #5B8CFF 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+html.dark .aegis-card-hover:hover {
+  border-color: #475569;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.gradient-text-rainbow {
-  background: linear-gradient(135deg, #5B8CFF 0%, #7C5CFC 40%, #14B8A6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+/* Elevation Shadows */
+.elevation-1 {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.gradient-border-glow {
-  position: relative;
+html.dark .elevation-1 {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
-.gradient-border-glow::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(91, 140, 255, 0.4), rgba(124, 92, 252, 0.1), rgba(20, 184, 166, 0.4));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+.elevation-2 {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
 }
 
-/* Custom Scrollbar */
+html.dark .elevation-2 {
+  box-shadow: 0 4px 8px -1px rgba(0, 0, 0, 0.35);
+}
+
+.elevation-3 {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+}
+
+html.dark .elevation-3 {
+  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.45);
+}
+
+.elevation-4 {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+html.dark .elevation-4 {
+  box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.6);
+}
+
+/* Semantic Risk Colors */
+.risk-border-low {
+  border-left-color: #10B981 !important;
+}
+
+.risk-border-medium {
+  border-left-color: #F59E0B !important;
+}
+
+.risk-border-high {
+  border-left-color: #EF4444 !important;
+}
+
+.risk-border-critical {
+  border-left-color: #7C3AED !important;
+}
+
+/* Custom Clean Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #08090A;
+  background: var(--bg-main);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: #CBD5E1;
   border-radius: 9999px;
 }
 
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: #94A3B8;
 }
 
-/* Grid Background Pattern */
-.bg-grid-pattern {
-  background-size: 40px 40px;
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Subtle grid pattern adapting to light and dark */
+.bg-subtle-grid {
+  background-size: 32px 32px;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
 }
 
-/* Dots Pattern */
-.bg-dots-pattern {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-  background-size: 24px 24px;
+html.dark .bg-subtle-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
 }

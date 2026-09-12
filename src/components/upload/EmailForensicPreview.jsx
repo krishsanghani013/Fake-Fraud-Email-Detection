@@ -217,7 +217,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
   return (
     <div className="space-y-6">
       {/* Overview Status Banner */}
-      <div className="glass-card p-6 border border-white/10 rounded-3xl space-y-4">
+      <div className="glass-card p-6 border border-borderSubtle rounded-3xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-borderSubtle">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primaryBlue/10 border border-primaryBlue/30 text-primaryBlue text-xs font-mono font-semibold">
@@ -539,7 +539,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
             </div>
 
             {/* Score Overview Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-xs font-mono">
               <div className="p-5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-2 lg:col-span-1 flex flex-col justify-between">
                 <span className="text-textSecondary text-[11px] uppercase tracking-wider">Total Risk Score</span>
                 <div className="flex items-baseline gap-2">
@@ -607,6 +607,14 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                 </div>
                 <span className="text-[10px] text-textSecondary">IP, URL & Domain Reputation</span>
               </div>
+
+              <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
+                <span className="text-textSecondary text-[11px]">Phishing & Deception:</span>
+                <div className="text-2xl font-bold text-amber-500 dark:text-amber-400">
+                  +{risk.summary?.categories?.phishing_heuristics || 0}
+                </div>
+                <span className="text-[10px] text-textSecondary">Credential lures, urgency & traps</span>
+              </div>
             </div>
 
             {/* Itemized Risk Contributions */}
@@ -633,7 +641,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                   {risk.contributions.map((c, idx) => (
                     <div
                       key={idx}
-                      className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-2 hover:border-white/20 transition-all"
+                      className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-2 hover:border-primaryBlue/40 transition-all"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -641,7 +649,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                             +{c.points} pts
                           </span>
                           <span className="font-bold text-textPrimary text-xs">{c.id}</span>
-                          <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-white/5 text-textSecondary">
+                          <span className="text-[10px] uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary">
                             {c.category.replace(/_/g, ' ')}
                           </span>
                         </div>
@@ -671,6 +679,18 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                             <div><strong>Confidence / Abuse Score:</strong> {c.evidence.confidence}%</div>
                           )}
                           {c.evidence.checkedAt && <div><strong>Checked At:</strong> {c.evidence.checkedAt}</div>}
+                          {c.evidence.matchedSnippet && <div><strong>Matched Phishing Pattern:</strong> "{c.evidence.matchedSnippet}"</div>}
+                          {c.evidence.brandName && (
+                            <div><strong>Impersonated Brand:</strong> {c.evidence.brandName} (Display Name: "{c.evidence.displayName}", Sending Domain: {c.evidence.senderDomain})</div>
+                          )}
+                          {c.evidence.displayedAnchorDomain && (
+                            <div><strong>Deceptive Hyperlink:</strong> Displayed "{c.evidence.displayedAnchorDomain}" &rarr; Actual target: {c.evidence.actualTargetHost}</div>
+                          )}
+                          {c.evidence.filename && (
+                            <div><strong>Suspicious Attachment:</strong> {c.evidence.filename} ({c.evidence.extension || c.evidence.maskedExtension || 'unknown'})</div>
+                          )}
+                          {c.evidence.ipHost && <div><strong>Raw IP Host:</strong> {c.evidence.ipHost}</div>}
+                          {c.evidence.url && <div><strong>Target URL:</strong> {c.evidence.url}</div>}
                           {c.evidence.raw && <div><strong>Raw Header:</strong> {c.evidence.raw}</div>}
                         </div>
                       )}
@@ -716,7 +736,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                 <div className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
                   <div className="flex items-center justify-between text-textSecondary">
                     <span>From Header:</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-primaryBlue font-semibold">Primary</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-primaryBlue/10 text-primaryBlue font-semibold">Primary</span>
                   </div>
                   <div className="font-semibold text-textPrimary break-all">
                     {senderIdentity.identities?.from?.address || 'None'}
@@ -735,7 +755,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                     <div className="text-textSecondary italic">None</div>
                   ) : (
                     senderIdentity.identities.replyTo.map((rt, idx) => (
-                      <div key={idx} className="space-y-0.5 border-b border-white/5 pb-1 last:border-none last:pb-0">
+                      <div key={idx} className="space-y-0.5 border-b border-borderSubtle pb-1 last:border-none last:pb-0">
                         <div className="font-semibold text-textPrimary break-all">{rt.address || rt.raw}</div>
                         <div className="text-[11px] text-textSecondary">
                           Domain: <strong className="text-cyanAccent">{rt.domain || 'None'}</strong>
@@ -749,7 +769,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                 <div className="p-3.5 rounded-2xl bg-surfaceSecondary border border-borderSubtle space-y-1">
                   <div className="flex items-center justify-between text-textSecondary">
                     <span>Return-Path:</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-textSecondary">Envelope</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary">Envelope</span>
                   </div>
                   <div className="font-semibold text-textPrimary break-all">
                     {senderIdentity.identities?.returnPath?.address || 'None'}
@@ -861,14 +881,14 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                               ? 'bg-successGreen/20 text-successGreen border border-successGreen/40'
                               : isMismatch
                               ? 'bg-warningYellow/20 text-warningYellow border border-warningYellow/40'
-                              : 'bg-white/10 text-textSecondary border border-white/10'
+                              : 'bg-slate-100 dark:bg-white/10 text-textSecondary border border-borderSubtle'
                           }`}
                         >
                           {comp.status}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-white/5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-borderSubtle">
                         <div>
                           <span className="text-textSecondary">{comp.sourceA?.type}: </span>
                           <span className="text-textPrimary font-semibold">{comp.sourceA?.domain || 'N/A'}</span>
@@ -913,7 +933,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-textPrimary text-xs">{f.id}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-textSecondary">
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary">
                             {f.comparison}
                           </span>
                         </div>
@@ -1007,7 +1027,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                     return (
                       <div key={idx} className="space-y-3">
                         <div className="p-4 rounded-2xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono space-y-2">
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-borderSubtle pb-2">
                             <div className="flex items-center gap-2">
                               <span className="px-2.5 py-0.5 rounded-full bg-primaryBlue/20 text-primaryBlue border border-primaryBlue/40 text-[11px] font-bold">
                                 Chronological Hop #{hop.chronologicalIndex}
@@ -1016,12 +1036,12 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                                 (Raw Header #{hop.headerIndex})
                               </span>
                               {hop.chronologicalIndex === 0 && (
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-cyanAccent font-semibold">
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-cyanAccent/10 text-cyanAccent border border-cyanAccent/30 font-semibold">
                                   Earliest Reported Hop
                                 </span>
                               )}
                               {hop.chronologicalIndex === transmission.hops.length - 1 && (
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-successGreen font-semibold">
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-successGreen/10 text-successGreen border border-successGreen/30 font-semibold">
                                   Final Receiving Hop
                                 </span>
                               )}
@@ -1071,15 +1091,15 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                           </div>
 
                           {hop.ips?.length > 0 && (
-                            <div className="pt-2 border-t border-white/5 flex flex-wrap items-center gap-2 text-[10px]">
+                            <div className="pt-2 border-t border-borderSubtle flex flex-wrap items-center gap-2 text-[10px]">
                               <span className="text-textSecondary">Extracted IPs:</span>
                               {hop.ips.map((ipObj, ipIdx) => (
                                 <span
                                   key={ipIdx}
-                                  className="px-2 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-cyanAccent flex items-center gap-1"
+                                  className="px-2 py-0.5 rounded bg-surfaceSecondary border border-borderSubtle font-mono text-cyanAccent flex items-center gap-1"
                                 >
                                   <span>{ipObj.address}</span>
-                                  <span className="text-[9px] uppercase px-1 rounded bg-white/10 text-textSecondary">
+                                  <span className="text-[9px] uppercase px-1 rounded bg-slate-100 dark:bg-white/10 text-textSecondary">
                                     {ipObj.type}
                                   </span>
                                 </span>
@@ -1101,7 +1121,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                                   ? 'bg-primaryBlue/10 text-primaryBlue border border-primaryBlue/30'
                                   : latency.status === 'negative'
                                   ? 'bg-warningYellow/20 text-warningYellow border border-warningYellow/40 font-bold'
-                                  : 'bg-white/5 text-textSecondary border border-white/10'
+                                  : 'bg-surfaceSecondary text-textSecondary border border-borderSubtle'
                               }`}
                             >
                               <ArrowDown className="w-3 h-3" />
@@ -1228,7 +1248,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-textPrimary uppercase">Reported Result: {item.result}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-textSecondary">
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary">
                             Source: {item.source}
                           </span>
                         </div>
@@ -1336,7 +1356,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-textPrimary uppercase">Reported Result: {res.result}</span>
                         {res.policy && (
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-warningAmber">
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-warningAmber/10 text-warningAmber border border-warningAmber/30">
                             Explicit Policy: {res.policy}
                           </span>
                         )}
@@ -1461,7 +1481,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-primaryBlue font-semibold">{urlItem.domain}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-textSecondary">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary">
                           Source: {urlItem.source}
                         </span>
                       </div>
@@ -1502,7 +1522,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                     >
                       <div className="font-bold text-textPrimary flex items-center justify-between">
                         <span className="text-cyanAccent">{ipItem.address}</span>
-                        <span className="text-[10px] text-textSecondary px-1.5 py-0.5 rounded bg-white/5">
+                        <span className="text-[10px] text-textSecondary px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10">
                           IPv{ipItem.version}
                         </span>
                       </div>
@@ -1537,7 +1557,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                       <div className="font-semibold text-textPrimary break-all">{dom.normalized}</div>
                       <div className="text-[10px] text-textSecondary flex items-center justify-between">
                         <span>Orig: {dom.original}</span>
-                        <span className="px-1.5 py-0.5 rounded bg-white/5">{dom.source}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10">{dom.source}</span>
                       </div>
                     </div>
                   ))}
@@ -1591,7 +1611,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                   <div className="p-2.5 rounded-xl bg-purpleAccent/10 border border-purpleAccent/30 text-xs text-purpleAccent font-mono">
                     Note: Untrusted HTML source displayed for inspection. Scripts are never executed.
                   </div>
-                  <pre className="p-4 rounded-2xl bg-black/80 border border-white/5 font-mono text-xs text-cyanAccent/90 leading-relaxed overflow-x-auto max-h-80 overflow-y-auto">
+                  <pre className="p-4 rounded-2xl bg-slate-900 border border-slate-700 font-mono text-xs text-cyan-300 leading-relaxed overflow-x-auto max-h-80 overflow-y-auto">
                     {body.html}
                   </pre>
                 </div>
@@ -1735,7 +1755,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
               <div className="space-y-1">
                 <div className="font-semibold text-textPrimary font-mono flex items-center gap-2">
                   <span>External Threat Intelligence & Reputation Enrichment (Phase 7)</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 uppercase tracking-wider text-purpleAccent">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purpleAccent/10 uppercase tracking-wider text-purpleAccent">
                     Passive Forensics Only
                   </span>
                 </div>
@@ -1860,13 +1880,13 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                                   ? 'bg-successGreen/20 text-successGreen border-successGreen/40'
                                   : isSkipped
                                   ? 'bg-cyanAccent/10 text-cyanAccent border-cyanAccent/30'
-                                  : 'bg-white/5 text-textSecondary border-white/10'
+                                  : 'bg-surfaceSecondary text-textSecondary border border-borderSubtle'
                               }`}
                             >
                               {item.status}
                             </span>
 
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-textSecondary">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-white/10 text-textSecondary">
                               {isMalicious ? '+25 pts' : isSuspicious ? '+12 pts' : '0 pts'}
                             </span>
                           </div>
@@ -1942,13 +1962,13 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                                   ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                                   : isClean
                                   ? 'bg-successGreen/20 text-successGreen border-successGreen/40'
-                                  : 'bg-white/5 text-textSecondary border-white/10'
+                                  : 'bg-surfaceSecondary text-textSecondary border border-borderSubtle'
                               }`}
                             >
                               {item.status}
                             </span>
 
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-textSecondary">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-white/10 text-textSecondary">
                               {isMalicious ? '+25 pts' : isSuspicious ? '+12 pts' : '0 pts'}
                             </span>
                           </div>
@@ -2027,13 +2047,13 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                                   ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                                   : isClean
                                   ? 'bg-successGreen/20 text-successGreen border-successGreen/40'
-                                  : 'bg-white/5 text-textSecondary border-white/10'
+                                  : 'bg-surfaceSecondary text-textSecondary border border-borderSubtle'
                               }`}
                             >
                               {item.status}
                             </span>
 
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-textSecondary">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-white/10 text-textSecondary">
                               {isMalicious ? '+25 pts' : isSuspicious ? '+12 pts' : '0 pts'}
                             </span>
                           </div>
@@ -2165,7 +2185,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
               </div>
 
               {/* Mandatory AI Disclaimer (Prompt Section 27) */}
-              <div className="p-3.5 rounded-xl bg-darkBg/60 border border-white/10 text-xs text-textSecondary flex items-start gap-2.5">
+              <div className="p-3.5 rounded-xl bg-surfaceSecondary border border-borderSubtle text-xs text-textSecondary flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-purpleAccent flex-shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
                   <strong className="text-textPrimary font-mono uppercase text-[11px]">Forensic AI Disclaimer:</strong>{' '}
@@ -2249,15 +2269,15 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-darkBg/60 border border-white/10 text-xs font-mono text-textSecondary space-y-2">
+                <div className="p-3.5 rounded-xl bg-surfaceSecondary border border-borderSubtle text-xs font-mono text-textSecondary space-y-2">
                   <div>
                     <strong className="text-red-400">Reason:</strong>{' '}
                     {currentAiAnalysis.error || currentAiAnalysis.reason || 'AI service could not be reached.'}
                   </div>
                   {(!currentAiAnalysis.error || currentAiAnalysis.error.includes('GEMINI_API_KEY')) && (
-                    <div className="pt-2 border-t border-white/10 text-[11px] text-purpleAccent flex flex-wrap items-center justify-between gap-2">
+                    <div className="pt-2 border-t border-borderSubtle text-[11px] text-purpleAccent flex flex-wrap items-center justify-between gap-2">
                       <span>💡 Configure <code>GEMINI_API_KEY</code> and <code>GEMINI_MODEL=gemini-3.6-flash</code> in <code>.env.local</code> or update in Platform Settings.</span>
-                      <a href="/settings" className="underline hover:text-white font-semibold">Go to Settings &rarr;</a>
+                      <a href="/settings" className="underline hover:text-purpleAccent font-semibold">Go to Settings &rarr;</a>
                     </div>
                   )}
                 </div>
@@ -2428,7 +2448,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                         </div>
                         <div className="flex gap-1">
                           {currentAiAnalysis.authenticationAnalysis.evidenceIds?.map((eid, i) => (
-                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-textSecondary">
+                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary border border-borderSubtle">
                               {eid}
                             </span>
                           ))}
@@ -2462,7 +2482,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                         </div>
                         <div className="flex gap-1">
                           {currentAiAnalysis.senderIdentityAnalysis.evidenceIds?.map((eid, i) => (
-                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-textSecondary">
+                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary border border-borderSubtle">
                               {eid}
                             </span>
                           ))}
@@ -2496,7 +2516,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                         </div>
                         <div className="flex gap-1">
                           {currentAiAnalysis.transmissionAnalysis.evidenceIds?.map((eid, i) => (
-                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-textSecondary">
+                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary border border-borderSubtle">
                               {eid}
                             </span>
                           ))}
@@ -2530,7 +2550,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                         </div>
                         <div className="flex gap-1">
                           {currentAiAnalysis.threatIntelligenceAnalysis.evidenceIds?.map((eid, i) => (
-                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-textSecondary">
+                            <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-textSecondary border border-borderSubtle">
                               {eid}
                             </span>
                           ))}
@@ -2643,7 +2663,7 @@ export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveTo
                   <button
                     onClick={() => handleRunAiContentDetection(true)}
                     disabled={isAiContentLoading}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surfaceSecondary hover:bg-white/10 border border-borderSubtle text-xs font-mono font-semibold text-textPrimary transition-all"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surfaceSecondary hover:bg-slate-200 dark:hover:bg-slate-800 border border-borderSubtle text-xs font-mono font-semibold text-textPrimary transition-all"
                   >
                     <Zap className="w-4 h-4 text-cyanAccent" /> Instant Stylometric Scan (0ms)
                   </button>

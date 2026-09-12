@@ -2,17 +2,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   UploadCloud,
   FileCode,
-  FileText,
   AlertCircle,
   File,
   X,
   Sparkles,
   RotateCcw,
   CheckCircle2,
-  Send,
   Database,
   ExternalLink,
   ChevronRight,
@@ -23,8 +22,9 @@ import { AppSidebar } from '../../components/layout/AppSidebar';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useToast } from '../../components/ui/Toast';
-import { parseRawEmail, validateEmailInput } from '../../lib/emailParser';
+import { parseRawEmail } from '../../lib/emailParser';
 import { EmailForensicPreview } from '../../components/upload/EmailForensicPreview';
+import { addOrUpdateEmailInCache } from '../../lib/clientDataCache';
 
 const DETERMINISTIC_SAMPLES = [
   {
@@ -98,6 +98,60 @@ Content-Transfer-Encoding: base64
 
 JVBERi0xLjQKJcTl8uXr...[BASE64_PAYLOAD]...
 ------=_Boundary_Mix_999--`
+  },
+  {
+    id: 'paypal-phishing',
+    title: 'PayPal Phishing Lure (High Risk)',
+    raw: `From: "PayPal Security Desk" <service-notify@paypaI-support-update.org>
+Reply-To: support@paypaI-support-update.org
+To: victim@company.com
+Subject: URGENT: Verify Your PayPal Account To Prevent Suspension
+Date: Sat, 12 Sep 2026 07:11:55 -0700
+Message-ID: <20260912.paypal.77102@paypaI-support-update.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="UTF-8"
+
+<html>
+  <body>
+    <h2>Security Alert: Immediate Action Required</h2>
+    <p>We detected unauthorized sign-in attempts on your profile. Your account will be suspended within 24 hours.</p>
+    <p>Please click below to verify your account credentials:</p>
+    <p><a href="https://paypaI-support-update.org/dispute-login">https://paypal.com/verify</a></p>
+    <p>Failure to comply will result in permanent account deactivation.</p>
+  </body>
+</html>`
+  },
+  {
+    id: 'executive-bec-wire',
+    title: 'Executive BEC Wire Fraud',
+    raw: `From: "CEO Executive Office" <tim.cook@sec-apple-verify.com>
+Reply-To: wire-escrow-desk@offshore-transfers.ru
+To: finance-team@corp-internal.com
+Subject: Strictly Confidential: Urgent M&A Acquisition Wire Transfer
+Date: Sat, 12 Sep 2026 08:45:08 -0700
+Message-ID: <202609120845.x892KA9@sec-apple-verify.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_Part_8921_19284"
+
+------=_Part_8921_19284
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Finance Team,
+
+Please review the attached confidential acquisition document immediately. Do not inform anyone on the team as this is strictly confidential.
+Wire transfer $480,000 USD to the offshore escrow account before 2:00 PM today.
+Confirm receipt at: https://sec-apple-verify.com/wire-confirm?id=9821
+
+Regards,
+Executive Office
+
+------=_Part_8921_19284
+Content-Type: application/vnd.ms-word.document.macroEnabled.12; name="Acquisition_Agreement.docm"
+Content-Disposition: attachment; filename="Acquisition_Agreement.docm"
+Content-Transfer-Encoding: base64
+
+UEsDBBQAAAAIAKV6a1cAAAAAAAAAAAAAAA...
+------=_Part_8921_19284--`
   }
 ];
 
@@ -122,6 +176,19 @@ export default function UploadPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [savedRecord, setSavedRecord] = useState(null);
   const lastSavedFingerprintRef = useRef('');
+
+  // Check for pre-loaded upload from dashboard drop
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const pendingUpload = sessionStorage.getItem('pending_eml_upload');
+      if (pendingUpload) {
+        sessionStorage.removeItem('pending_eml_upload');
+        setRawText(pendingUpload);
+        setIngestionMode('paste');
+        toast('Email Loaded', 'Processing dropped email payload', 'info');
+      }
+    }
+  }, [toast]);
 
   const saveEmailToSupabase = async (dataToPersist, customAnalysis = null) => {
     if (!dataToPersist) return;
@@ -162,6 +229,7 @@ export default function UploadPage() {
 
       lastSavedFingerprintRef.current = fingerprint;
       setSavedRecord(json.data);
+      addOrUpdateEmailInCache(json.data);
       toast('Auto-Saved to Supabase', `Dynamic email saved to Supabase (ID: ${json.data.id.slice(0, 8)}...)`, 'success');
     } catch (err) {
       console.error('Supabase auto-persistence notice:', err);
@@ -188,7 +256,6 @@ export default function UploadPage() {
           setParsedData(result.data);
           setErrorMessage('');
           setWarnings(result.warnings || []);
-          // Automatically put into Supabase database
           saveEmailToSupabase(result.data);
         } else {
           setParsedData(null);
@@ -208,19 +275,17 @@ export default function UploadPage() {
     setErrorMessage('');
     setWarnings([]);
 
-    // File validation: extension check (.eml strictly required per section 1.B)
-    const isEml = file.name.toLowerCase().endsWith('.eml');
+    const isEml = file.name.toLowerCase().endsWith('.eml') || file.name.toLowerCase().endsWith('.msg');
     if (!isEml) {
-      const err = `Invalid file format (${file.name}). Please select a valid .eml file.`;
+      const err = `Invalid file format (${file.name}). Please select a valid .eml or .msg file.`;
       setErrorMessage(err);
       setParsedData(null);
       toast('Invalid File Type', err, 'error');
       return;
     }
 
-    // File validation: empty file check
     if (file.size === 0) {
-      const err = 'The selected .eml file is empty (0 bytes).';
+      const err = 'The selected file is empty (0 bytes).';
       setErrorMessage(err);
       setParsedData(null);
       toast('Empty File Rejected', err, 'error');
@@ -243,7 +308,6 @@ export default function UploadPage() {
           bytes: file.size
         });
         toast('Email Ingested', `${file.name} successfully parsed into normalized structure`, 'success');
-        // Automatically put into Supabase database
         saveEmailToSupabase(result.data);
       } else {
         setParsedData(null);
@@ -283,14 +347,12 @@ export default function UploadPage() {
     }
   };
 
-  // Load sample email
   const loadSample = (sample) => {
     setRawText(sample.raw);
     setIngestionMode('paste');
     toast('Sample Loaded', `Loaded "${sample.title}"`, 'info');
   };
 
-  // Clear / Reset
   const handleReset = () => {
     setRawText('');
     setUploadedFile(null);
@@ -308,7 +370,7 @@ export default function UploadPage() {
   const hasContent = Boolean(rawText.trim() || uploadedFile || parsedData);
 
   return (
-    <div className="min-h-screen bg-darkBg text-textPrimary flex">
+    <div className="min-h-screen bg-softWhite dark:bg-[#0F172A] text-deepSlate dark:text-softWhite flex transition-colors duration-200">
       <AppSidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
@@ -316,37 +378,37 @@ export default function UploadPage() {
 
         <main className="p-6 md:p-8 space-y-8 max-w-5xl w-full mx-auto">
           {/* Header */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs font-mono text-primaryBlue uppercase tracking-wider">
-              <Sparkles className="w-4 h-4" /> RFC 5322 Ingestion Foundation
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> RFC 5322 Ingestion Foundation
             </div>
-            <h1 className="text-3xl font-bold font-heading">
+            <h1 className="text-3xl font-bold font-heading tracking-tight text-slate-900 dark:text-white">
               Email Input & RFC 5322 Parsing
             </h1>
-            <p className="text-xs text-textSecondary">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               Local, zero-retention RFC 5322 header and MIME body parser generating canonical normalized email objects.
             </p>
           </div>
 
           {/* Mode Selector */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-2 rounded-2xl bg-surfaceSecondary border border-borderSubtle">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-1.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 shadow-xs">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIngestionMode('paste')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   ingestionMode === 'paste'
-                    ? 'bg-primaryBlue text-white shadow-glowBlue'
-                    : 'text-textSecondary hover:text-textPrimary'
+                    ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <FileCode className="w-4 h-4" /> Mode A: Paste Raw Email
               </button>
               <button
                 onClick={() => setIngestionMode('upload')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   ingestionMode === 'upload'
-                    ? 'bg-primaryBlue text-white shadow-glowBlue'
-                    : 'text-textSecondary hover:text-textPrimary'
+                    ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
                 <UploadCloud className="w-4 h-4" /> Mode B: Upload .eml File
@@ -356,7 +418,7 @@ export default function UploadPage() {
             {hasContent && (
               <button
                 onClick={handleReset}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-borderSubtle text-textSecondary hover:text-dangerRed hover:border-dangerRed/40 text-xs font-semibold transition-all self-start sm:self-auto"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-700 text-xs font-medium transition-all self-start sm:self-auto cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Clear / Reset
               </button>
@@ -369,7 +431,7 @@ export default function UploadPage() {
             {ingestionMode === 'paste' && (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
-                  <span className="text-xs font-medium text-textSecondary">
+                  <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
                     Load Deterministic Test Samples:
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
@@ -377,7 +439,7 @@ export default function UploadPage() {
                       <button
                         key={sample.id}
                         onClick={() => loadSample(sample)}
-                        className="px-2.5 py-1 rounded-lg bg-surface border border-borderSubtle hover:border-primaryBlue/50 text-[11px] font-mono text-textSecondary hover:text-textPrimary transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 text-[11px] font-mono text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
                       >
                         {sample.title}
                       </button>
@@ -391,10 +453,10 @@ export default function UploadPage() {
                     value={rawText}
                     onChange={(e) => setRawText(e.target.value)}
                     placeholder="Paste complete raw RFC 5322 email here (headers and body)...&#10;&#10;From: sender@example.com&#10;To: recipient@example.com&#10;Subject: Hello World&#10;Date: Mon, 10 Aug 2026 10:00:00 +0000&#10;Message-ID: <123@example.com>&#10;&#10;Message body text..."
-                    className="w-full bg-surfaceSecondary border border-borderSubtle rounded-2xl p-4 text-xs font-mono text-textPrimary placeholder:text-textSecondary/40 focus:outline-none focus:border-primaryBlue transition-colors leading-relaxed selection:bg-primaryBlue/30"
+                    className="w-full bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-colors leading-relaxed selection:bg-blue-500/20"
                   />
 
-                  <div className="absolute bottom-3 right-4 text-[10px] font-mono text-textSecondary/70 pointer-events-none bg-surfaceSecondary/90 px-2 py-0.5 rounded border border-white/5">
+                  <div className="absolute bottom-3 right-4 text-[10px] font-mono text-slate-600 dark:text-slate-300 pointer-events-none bg-white/95 dark:bg-slate-800/95 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 shadow-xs">
                     {rawText ? rawText.split(/\r?\n/).length : 0} lines • {rawText.length} bytes
                   </div>
                 </div>
@@ -409,16 +471,16 @@ export default function UploadPage() {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-3xl p-10 text-center transition-all cursor-pointer group ${
+                  className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer group ${
                     isDragging
-                      ? 'border-primaryBlue bg-primaryBlue/10 shadow-glowBlue'
-                      : 'border-borderSubtle hover:border-primaryBlue/50 bg-surfaceSecondary/40 hover:bg-surfaceSecondary/70'
+                      ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/40 shadow-xs'
+                      : 'border-slate-300 dark:border-slate-700 hover:border-blue-500 bg-slate-50/50 dark:bg-[#0F172A]/40 hover:bg-slate-100/50 dark:hover:bg-[#0F172A]/80'
                   }`}
                 >
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".eml"
+                    accept=".eml,.msg"
                     className="hidden"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
@@ -427,35 +489,35 @@ export default function UploadPage() {
                     }}
                   />
 
-                  <div className="w-14 h-14 rounded-2xl bg-primaryBlue/10 text-primaryBlue flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform border border-blue-100 dark:border-blue-900">
                     <UploadCloud className="w-7 h-7" />
                   </div>
 
-                  <h3 className="text-sm font-bold text-textPrimary">
-                    {isDragging ? 'Drop .eml file here' : 'Select or Drag & Drop .eml file'}
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {isDragging ? 'Drop .eml file here' : 'Drop .eml file here or click to browse'}
                   </h3>
-                  <p className="text-xs text-textSecondary mt-1">
-                    Accepts standard RFC 5322 <strong className="text-textPrimary">.eml</strong> files.
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                    Accepts standard RFC 5322 <strong className="text-slate-900 dark:text-white">.eml</strong> and <strong className="text-slate-900 dark:text-white">.msg</strong> files.
                   </p>
 
-                  <div className="mt-4 inline-flex items-center px-4 py-2 rounded-xl bg-surface border border-borderSubtle text-textPrimary text-xs font-semibold group-hover:border-primaryBlue/40 transition-all">
-                    Browse File (.eml)
+                  <div className="mt-4 inline-flex items-center px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold group-hover:border-blue-500 transition-all shadow-xs">
+                    Browse Files (.eml)
                   </div>
                 </div>
 
                 {uploadedFile && (
-                  <div className="p-4 rounded-2xl bg-surfaceSecondary border border-primaryBlue/40 flex items-center justify-between">
+                  <div className="p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <File className="w-5 h-5 text-primaryBlue" />
+                      <File className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                       <div>
-                        <div className="text-xs font-bold text-textPrimary">{uploadedFile.name}</div>
-                        <div className="text-[11px] text-textSecondary font-mono">{uploadedFile.size}</div>
+                        <div className="text-xs font-bold text-slate-900 dark:text-white">{uploadedFile.name}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-300 font-mono">{uploadedFile.size}</div>
                       </div>
                     </div>
 
                     <button
                       onClick={handleReset}
-                      className="p-1.5 rounded-lg text-textSecondary hover:text-dangerRed transition-colors"
+                      className="p-1.5 rounded-lg text-slate-400 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors cursor-pointer"
                       title="Clear file"
                     >
                       <X className="w-4 h-4" />
@@ -467,22 +529,22 @@ export default function UploadPage() {
 
             {/* Error Feedback */}
             {errorMessage && (
-              <div className="p-4 rounded-2xl bg-dangerRed/10 border border-dangerRed/30 flex items-start gap-3 text-xs">
-                <AlertCircle className="w-4 h-4 text-dangerRed flex-shrink-0 mt-0.5" />
+              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex items-start gap-3 text-xs">
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-dangerRed">Validation Error</div>
-                  <div className="text-textSecondary">{errorMessage}</div>
+                  <div className="font-semibold text-red-700 dark:text-red-300">Validation Error</div>
+                  <div className="text-red-600 dark:text-red-200">{errorMessage}</div>
                 </div>
               </div>
             )}
 
             {/* Warnings Feedback */}
             {warnings.length > 0 && !errorMessage && (
-              <div className="p-4 rounded-2xl bg-warningAmber/10 border border-warningAmber/30 flex items-start gap-3 text-xs">
-                <AlertCircle className="w-4 h-4 text-warningAmber flex-shrink-0 mt-0.5" />
+              <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-start gap-3 text-xs">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-warningAmber">Parsing Warnings</div>
-                  <div className="text-textSecondary">{warnings.join(' • ')}</div>
+                  <div className="font-semibold text-amber-700 dark:text-amber-300">Parsing Warnings</div>
+                  <div className="text-amber-600 dark:text-amber-200">{warnings.join(' • ')}</div>
                 </div>
               </div>
             )}
@@ -492,47 +554,47 @@ export default function UploadPage() {
           {parsedData && (
             <div className="space-y-6">
               {/* Automatic Supabase Persistence Confirmation & Action Bar */}
-              <div className="p-5 rounded-3xl bg-surfaceSecondary/80 border border-borderSubtle flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+              <div className="p-5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs transition-colors">
                 <div className="flex items-center gap-3.5">
-                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-all ${
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center border transition-all ${
                     savedRecord
-                      ? 'bg-successGreen/20 text-successGreen border-successGreen/40 shadow-glowGreen'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
                       : isSaving
-                      ? 'bg-cyanAccent/20 text-cyanAccent border-cyanAccent/40 animate-pulse'
-                      : 'bg-primaryBlue/20 text-primaryBlue border-primaryBlue/40'
+                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 animate-pulse'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                   }`}>
                     <Database className="w-5 h-5" />
                   </div>
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-textSecondary">
+                      <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         Supabase Cloud Database
                       </span>
                       {savedRecord ? (
-                        <span className="px-2 py-0.5 rounded-full bg-successGreen/20 text-successGreen text-[10px] font-mono font-bold border border-successGreen/30 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> AUTOMATICALLY SYNCHRONIZED
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> SYNCHRONIZED
                         </span>
                       ) : isSaving ? (
-                        <span className="px-2 py-0.5 rounded-full bg-cyanAccent/20 text-cyanAccent text-[10px] font-mono font-bold border border-cyanAccent/30 flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3 animate-spin" /> AUTO-SAVING TO SUPABASE...
+                        <span className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3 animate-spin" /> AUTO-SAVING...
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full bg-warningYellow/20 text-warningYellow text-[10px] font-mono border border-warningYellow/30">
-                          AUTO-PERSIST PENDING...
+                        <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[10px] font-mono border border-amber-200 dark:border-amber-800">
+                          PENDING...
                         </span>
                       )}
                     </div>
-                    <div className="text-sm font-semibold text-textPrimary">
+                    <div className="text-sm font-semibold text-slate-900 dark:text-white">
                       {savedRecord
                         ? `Live Supabase Record: ${savedRecord.subject || 'Ingested Email'}`
-                        : 'Dynamic Email Automatically Put in Supabase'}
+                        : 'Dynamic Email Automatically Synced to Supabase'}
                     </div>
-                    <div className="text-[11px] font-mono text-textSecondary">
+                    <div className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
                       {savedRecord ? (
                         <>
-                          UUID: <strong className="text-cyanAccent">{savedRecord.id}</strong> • Table:{' '}
-                          <span className="text-textPrimary font-semibold">public.emails</span> &{' '}
-                          <span className="text-textPrimary font-semibold">public.analysis_results</span>
+                          UUID: <strong className="text-slate-900 dark:text-white font-semibold">{savedRecord.id}</strong> • Tables:{' '}
+                          <span className="text-slate-900 dark:text-white font-semibold">public.emails</span> &{' '}
+                          <span className="text-slate-900 dark:text-white font-semibold">public.analysis_results</span>
                         </>
                       ) : (
                         'Ingested headers, sender identity, body, and calculated risk score auto-persist immediately.'
@@ -547,50 +609,48 @@ export default function UploadPage() {
                       <button
                         onClick={() => saveEmailToSupabase(parsedData)}
                         disabled={isSaving}
-                        className="px-3 py-2 rounded-xl bg-surface border border-borderSubtle hover:border-cyanAccent/40 text-textSecondary hover:text-cyanAccent text-xs font-medium flex items-center gap-1.5 transition-all"
+                        className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
                         title="Re-synchronize latest forensic updates with Supabase"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
                         <span>Re-sync</span>
                       </button>
-                      <Link href={`/results/${savedRecord.id}`}>
-                        <button className="px-3.5 py-2 rounded-xl bg-primaryBlue text-white text-xs font-semibold flex items-center gap-1.5 shadow-glowBlue hover:bg-primaryBlue/90 transition-all">
-                          <span>View Full Report</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </button>
+                      <Link
+                        href={`/results/${savedRecord.id}`}
+                        prefetch={true}
+                        onMouseEnter={() => router.prefetch(`/results/${savedRecord.id}`)}
+                      >
+                        <Button variant="primary" size="sm" icon={<ExternalLink className="w-3.5 h-3.5" />}>
+                          View Full Forensic Verdict
+                        </Button>
                       </Link>
-                      <Link href="/dashboard">
-                        <button className="px-3.5 py-2 rounded-xl bg-surface border border-borderSubtle text-textSecondary hover:text-textPrimary text-xs font-semibold flex items-center gap-1.5 transition-colors">
-                          <span>Dashboard Scans</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
+                      <Link
+                        href="/dashboard"
+                        prefetch={true}
+                        onMouseEnter={() => router.prefetch('/dashboard')}
+                      >
+                        <Button variant="secondary" size="sm" icon={<ChevronRight className="w-3.5 h-3.5" />}>
+                          Dashboard Scans
+                        </Button>
                       </Link>
                     </>
                   ) : (
-                    <button
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => saveEmailToSupabase(parsedData)}
                       disabled={isSaving}
-                      className="px-4 py-2 rounded-xl bg-primaryBlue text-white text-xs font-semibold flex items-center gap-2 shadow-glowBlue hover:bg-primaryBlue/90 transition-all disabled:opacity-50"
+                      icon={isSaving ? <RotateCcw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
                     >
-                      {isSaving ? (
-                        <>
-                          <RotateCcw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Auto-Saving to Supabase...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Database className="w-3.5 h-3.5" />
-                          <span>Sync to Supabase Now</span>
-                        </>
-                      )}
-                    </button>
+                      {isSaving ? 'Auto-Saving to Supabase...' : 'Sync to Supabase Now'}
+                    </Button>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-textSecondary flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-successGreen" /> Parsed Email Inspection View
+              <div className="flex items-center justify-between pt-2">
+                <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Parsed Email Inspection View
                 </h2>
               </div>
 

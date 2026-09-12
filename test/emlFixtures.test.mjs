@@ -308,7 +308,10 @@ async function runAll() {
     assert.ok(targetUrl, 'Must extract lure link artifact');
 
     // Risk points assigned
-    assert.ok(result.data.risk.totalScore >= 15);
+    assert.ok(result.data.risk.totalScore >= 70, `Phishing lure must achieve elevated risk score (got ${result.data.risk.totalScore})`);
+    assert.equal(result.data.risk.level, 'HIGH');
+    assert.ok(result.data.risk.summary.categories.phishing_heuristics >= 50);
+    assert.ok(result.data.risk.contributions.some((c) => c.id === 'PHISHING_CREDENTIAL_HARVESTING'));
   });
 
   // ---------------------------------------------------------------------------
