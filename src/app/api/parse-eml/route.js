@@ -1,4 +1,5 @@
 import { parseRawEmail } from '../../../lib/emailParser.js';
+import { autoPersistEmailToSupabase } from '../../../lib/emailPersistence.js';
 
 /**
  * POST /api/parse-eml
@@ -50,11 +51,34 @@ export async function POST(request) {
       );
     }
 
+    // Automatically record in Supabase database
+    let savedRecord = null;
+    try {
+      const sender = result.data?.metadata?.from || 'eml-upload@workbench.internal';
+      const subject = result.data?.metadata?.subject || '(No Subject)';
+      const body = result.data?.body?.text || result.data?.body?.html || emlContent;
+      const score = result.data?.risk?.totalScore ?? 0;
+      const level = result.data?.risk?.level || 'ANALYZED';
+      const expl = `RFC 5322 Ingestion: ${level} risk level (${score}/100).`;
+
+      savedRecord = await autoPersistEmailToSupabase({
+        sender,
+        subject,
+        body,
+        riskScore: score,
+        classification: level,
+        explanation: expl
+      });
+    } catch (dbErr) {
+      console.warn('[API /api/parse-eml] Auto-persist skipped:', dbErr?.message || dbErr);
+    }
+
     return Response.json(
       {
         success: true,
         data: result.data,
-        warnings: result.warnings || []
+        warnings: result.warnings || [],
+        savedRecord
       },
       { status: 200 }
     );

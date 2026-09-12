@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   RefreshCw,
   Zap,
-  Info
+  Info,
+  Database
 } from 'lucide-react';
 import { AppHeader } from '../../components/layout/AppHeader';
 import { AppSidebar } from '../../components/layout/AppSidebar';
@@ -95,11 +96,13 @@ export default function AiDetectorPage() {
   const [text, setText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [detectionResult, setDetectionResult] = useState(null);
+  const [savedDbRecord, setSavedDbRecord] = useState(null);
 
   const loadSample = (sample) => {
     setSubject(sample.subject);
     setText(sample.text);
     setDetectionResult(null);
+    setSavedDbRecord(null);
     toast('Sample Loaded', `Loaded "${sample.label}"`, 'info');
   };
 
@@ -128,11 +131,14 @@ export default function AiDetectorPage() {
       }
 
       setDetectionResult(data.detection);
+      if (data.savedRecord) {
+        setSavedDbRecord(data.savedRecord);
+      }
       toast(
         'Detection Complete',
-        data.detection.isOfflineFallback
-          ? 'Stylometric analysis complete.'
-          : 'Deep AI & stylometric forensic analysis complete.',
+        data.savedRecord
+          ? `Analysis complete and automatically saved to Supabase (ID: ${data.savedRecord.id.slice(0, 8)}...)`
+          : 'Analysis complete.',
         'success'
       );
     } catch (err) {
@@ -146,6 +152,7 @@ export default function AiDetectorPage() {
     setSubject('');
     setText('');
     setDetectionResult(null);
+    setSavedDbRecord(null);
   };
 
   return (
@@ -158,14 +165,24 @@ export default function AiDetectorPage() {
         <main className="flex-1 p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-8">
           {/* Header */}
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purpleAccent/10 border border-purpleAccent/30 text-purpleAccent text-xs font-mono font-semibold">
-              <Sparkles className="w-3.5 h-3.5" /> Phase 9 Dual-Matrix Forensic Engine
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purpleAccent/10 border border-purpleAccent/30 text-purpleAccent text-xs font-mono font-semibold">
+                <Sparkles className="w-3.5 h-3.5" /> Phase 9 Dual-Matrix Forensic Engine
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-cyanAccent/10 text-cyanAccent text-[11px] font-mono border border-cyanAccent/20 flex items-center gap-1.5">
+                <Database className="w-3 h-3" /> Supabase Auto-Sync Active
+              </span>
+              {savedDbRecord && (
+                <span className="px-2.5 py-1 rounded-full bg-successGreen/20 text-successGreen text-[11px] font-mono border border-successGreen/30 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3 h-3" /> Recorded in Supabase ({savedDbRecord.id.slice(0, 8)}...)
+                </span>
+              )}
             </div>
             <h1 className="text-3xl font-extrabold font-heading text-textPrimary tracking-tight">
               AI Origin & Threat / Harm Forensic Detector
             </h1>
             <p className="text-sm text-textSecondary max-w-3xl leading-relaxed">
-              Dual-matrix forensic engine simultaneously predicting <strong>Authorship Origin</strong> (AI-Generated vs Human-Authored) and <strong>Threat Intent</strong> (Fake / Harmful Phishing vs Authentic Legitimate Communication).
+              Dual-matrix forensic engine predicting <strong>Authorship Origin</strong> (AI vs Human) and <strong>Threat Intent</strong> (Harmful Phishing vs Legitimate). Evaluated emails are automatically synchronized with Supabase PostgreSQL.
             </p>
           </div>
 

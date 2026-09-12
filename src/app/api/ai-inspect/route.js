@@ -1,4 +1,5 @@
 import { inspectEmail, extractTextAnnotations, buildUnifiedEvidenceChain } from '../../../lib/aiInspect.js';
+import { autoPersistEmailToSupabase } from '../../../lib/emailPersistence.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,27 @@ export async function POST(request) {
     // Build unified 6-stage evidence flow & category scores
     const evidenceChain = buildUnifiedEvidenceChain(inspectionResult, emailData);
 
+    // Automatically record in Supabase database
+    let savedRecord = null;
+    try {
+      const fromHeader = emailData?.metadata?.from || 'inspect@workbench.internal';
+      const subjHeader = emailData?.metadata?.subject || 'AI Deep Inspection';
+      const score = inspectionResult.riskScore ?? 0;
+      const level = inspectionResult.urgencyLevel || (score >= 75 ? 'CRITICAL' : score >= 50 ? 'HIGH' : score >= 25 ? 'MEDIUM' : 'LOW');
+      const expl = inspectionResult.executiveSummary || 'Deep AI Forensic Inspection completed.';
+
+      savedRecord = await autoPersistEmailToSupabase({
+        sender: fromHeader,
+        subject: subjHeader,
+        body: trimmedText,
+        riskScore: score,
+        classification: level,
+        explanation: expl
+      });
+    } catch (dbErr) {
+      console.warn('[API /api/ai-inspect] Auto-persist skipped:', dbErr?.message || dbErr);
+    }
+
     return Response.json(
       {
         success: true,
@@ -97,7 +119,8 @@ export async function POST(request) {
           ...inspectionResult,
           emailText: trimmedText,
           textAnnotations,
-          evidenceChain
+          evidenceChain,
+          savedRecord
         }
       },
       { status: 200 }

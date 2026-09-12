@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   UploadCloud,
   FileCode,
@@ -11,7 +12,11 @@ import {
   Sparkles,
   RotateCcw,
   CheckCircle2,
-  Send
+  Send,
+  Database,
+  ExternalLink,
+  ChevronRight,
+  RefreshCw
 } from 'lucide-react';
 import { AppHeader } from '../../components/layout/AppHeader';
 import { AppSidebar } from '../../components/layout/AppSidebar';
@@ -113,11 +118,65 @@ export default function UploadPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [warnings, setWarnings] = useState([]);
 
-  // Auto-parse pasted raw text with debounce
+  // Supabase Database Persistence State
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedRecord, setSavedRecord] = useState(null);
+  const lastSavedFingerprintRef = useRef('');
+
+  const saveEmailToSupabase = async (dataToPersist, customAnalysis = null) => {
+    if (!dataToPersist) return;
+
+    const sender = dataToPersist.metadata?.from || 'unknown@sender.com';
+    const subject = dataToPersist.metadata?.subject || 'Untitled Email';
+    const body = dataToPersist.body?.text || dataToPersist.body?.html || rawText || '';
+    const riskScore = dataToPersist.risk?.totalScore || 0;
+    const classification = dataToPersist.risk?.level || (riskScore >= 75 ? 'CRITICAL' : riskScore >= 50 ? 'HIGH' : riskScore >= 25 ? 'MEDIUM' : 'LOW');
+    const aiExplanation = customAnalysis?.explanation || dataToPersist.aiAnalysis?.explanation;
+    const explanation = aiExplanation || `Authoritative RFC 5322 & forensic evaluation: ${classification} level with risk score ${riskScore}/100.`;
+
+    const fingerprint = `${sender}:::${subject}:::${body.slice(0, 100)}:::${riskScore}:::${aiExplanation ? 'ai' : 'raw'}`;
+    if (!customAnalysis && lastSavedFingerprintRef.current === fingerprint) {
+      return; // Already auto-saved this exact payload
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailData: dataToPersist,
+          sender,
+          subject,
+          body,
+          riskScore,
+          classification,
+          explanation
+        })
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to auto-save to Supabase');
+      }
+
+      lastSavedFingerprintRef.current = fingerprint;
+      setSavedRecord(json.data);
+      toast('Auto-Saved to Supabase', `Dynamic email saved to Supabase (ID: ${json.data.id.slice(0, 8)}...)`, 'success');
+    } catch (err) {
+      console.error('Supabase auto-persistence notice:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Auto-parse pasted raw text with debounce & automatic Supabase persistence
   useEffect(() => {
     if (ingestionMode === 'paste') {
       if (!rawText.trim()) {
         setParsedData(null);
+        setSavedRecord(null);
+        lastSavedFingerprintRef.current = '';
         setErrorMessage('');
         setWarnings([]);
         return;
@@ -129,12 +188,16 @@ export default function UploadPage() {
           setParsedData(result.data);
           setErrorMessage('');
           setWarnings(result.warnings || []);
+          // Automatically put into Supabase database
+          saveEmailToSupabase(result.data);
         } else {
           setParsedData(null);
+          setSavedRecord(null);
+          lastSavedFingerprintRef.current = '';
           setErrorMessage(result.error || 'Failed to parse RFC 5322 email.');
           setWarnings(result.warnings || []);
         }
-      }, 300);
+      }, 400);
 
       return () => clearTimeout(timer);
     }
@@ -180,8 +243,12 @@ export default function UploadPage() {
           bytes: file.size
         });
         toast('Email Ingested', `${file.name} successfully parsed into normalized structure`, 'success');
+        // Automatically put into Supabase database
+        saveEmailToSupabase(result.data);
       } else {
         setParsedData(null);
+        setSavedRecord(null);
+        lastSavedFingerprintRef.current = '';
         setErrorMessage(result.error || 'Failed to parse .eml file.');
         setWarnings(result.warnings || []);
         toast('Parsing Error', result.error, 'error');
@@ -228,6 +295,8 @@ export default function UploadPage() {
     setRawText('');
     setUploadedFile(null);
     setParsedData(null);
+    setSavedRecord(null);
+    lastSavedFingerprintRef.current = '';
     setErrorMessage('');
     setWarnings([]);
     if (fileInputRef.current) {
@@ -421,14 +490,115 @@ export default function UploadPage() {
 
           {/* Parsed Email Display */}
           {parsedData && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Automatic Supabase Persistence Confirmation & Action Bar */}
+              <div className="p-5 rounded-3xl bg-surfaceSecondary/80 border border-borderSubtle flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-all ${
+                    savedRecord
+                      ? 'bg-successGreen/20 text-successGreen border-successGreen/40 shadow-glowGreen'
+                      : isSaving
+                      ? 'bg-cyanAccent/20 text-cyanAccent border-cyanAccent/40 animate-pulse'
+                      : 'bg-primaryBlue/20 text-primaryBlue border-primaryBlue/40'
+                  }`}>
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-textSecondary">
+                        Supabase Cloud Database
+                      </span>
+                      {savedRecord ? (
+                        <span className="px-2 py-0.5 rounded-full bg-successGreen/20 text-successGreen text-[10px] font-mono font-bold border border-successGreen/30 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> AUTOMATICALLY SYNCHRONIZED
+                        </span>
+                      ) : isSaving ? (
+                        <span className="px-2 py-0.5 rounded-full bg-cyanAccent/20 text-cyanAccent text-[10px] font-mono font-bold border border-cyanAccent/30 flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3 animate-spin" /> AUTO-SAVING TO SUPABASE...
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-warningYellow/20 text-warningYellow text-[10px] font-mono border border-warningYellow/30">
+                          AUTO-PERSIST PENDING...
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm font-semibold text-textPrimary">
+                      {savedRecord
+                        ? `Live Supabase Record: ${savedRecord.subject || 'Ingested Email'}`
+                        : 'Dynamic Email Automatically Put in Supabase'}
+                    </div>
+                    <div className="text-[11px] font-mono text-textSecondary">
+                      {savedRecord ? (
+                        <>
+                          UUID: <strong className="text-cyanAccent">{savedRecord.id}</strong> • Table:{' '}
+                          <span className="text-textPrimary font-semibold">public.emails</span> &{' '}
+                          <span className="text-textPrimary font-semibold">public.analysis_results</span>
+                        </>
+                      ) : (
+                        'Ingested headers, sender identity, body, and calculated risk score auto-persist immediately.'
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 self-end md:self-auto">
+                  {savedRecord ? (
+                    <>
+                      <button
+                        onClick={() => saveEmailToSupabase(parsedData)}
+                        disabled={isSaving}
+                        className="px-3 py-2 rounded-xl bg-surface border border-borderSubtle hover:border-cyanAccent/40 text-textSecondary hover:text-cyanAccent text-xs font-medium flex items-center gap-1.5 transition-all"
+                        title="Re-synchronize latest forensic updates with Supabase"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
+                        <span>Re-sync</span>
+                      </button>
+                      <Link href={`/results/${savedRecord.id}`}>
+                        <button className="px-3.5 py-2 rounded-xl bg-primaryBlue text-white text-xs font-semibold flex items-center gap-1.5 shadow-glowBlue hover:bg-primaryBlue/90 transition-all">
+                          <span>View Full Report</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                      </Link>
+                      <Link href="/dashboard">
+                        <button className="px-3.5 py-2 rounded-xl bg-surface border border-borderSubtle text-textSecondary hover:text-textPrimary text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                          <span>Dashboard Scans</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </Link>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => saveEmailToSupabase(parsedData)}
+                      disabled={isSaving}
+                      className="px-4 py-2 rounded-xl bg-primaryBlue text-white text-xs font-semibold flex items-center gap-2 shadow-glowBlue hover:bg-primaryBlue/90 transition-all disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Auto-Saving to Supabase...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Database className="w-3.5 h-3.5" />
+                          <span>Sync to Supabase Now</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-bold font-mono uppercase tracking-wider text-textSecondary flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-successGreen" /> Parsed Email Inspection View
                 </h2>
               </div>
 
-              <EmailForensicPreview emailData={parsedData} />
+              <EmailForensicPreview
+                emailData={parsedData}
+                savedDbRecord={savedRecord}
+                onSaveToDatabase={(customAnalysis) => saveEmailToSupabase(parsedData, customAnalysis)}
+              />
             </div>
           )}
         </main>

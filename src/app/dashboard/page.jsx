@@ -32,7 +32,45 @@ import { useToast } from '../../components/ui/Toast';
 export default function DashboardPage() {
   const { toast } = useToast();
   const { user, isLoaded } = useUser();
-  const sampleList = Object.values(SAMPLE_SCANS);
+  const [dbEmails, setDbEmails] = React.useState([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+
+  const fetchEmails = React.useCallback(async (showToast = false) => {
+    try {
+      if (showToast) setIsRefreshing(true);
+      const res = await fetch('/api/emails');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.emails && Array.isArray(data.emails)) {
+          setDbEmails(data.emails);
+          if (showToast) {
+            toast('Database Refreshed', `Loaded ${data.emails.length} dynamic scans from Supabase`, 'success');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch dynamic emails from Supabase:', err);
+      if (showToast) {
+        toast('Sync Warning', 'Unable to refresh Supabase records', 'error');
+      }
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [toast]);
+
+  React.useEffect(() => {
+    fetchEmails();
+  }, [fetchEmails]);
+
+  // Compute live dynamic stats from Supabase
+  const totalCount = dbEmails.length;
+  const flaggedCount = dbEmails.filter((e) => (e.riskScore ?? 0) >= 50).length;
+  const safeCount = dbEmails.filter((e) => (e.riskScore ?? 0) < 40).length;
+  const avgRisk = totalCount > 0
+    ? Math.round(dbEmails.reduce((acc, e) => acc + (e.riskScore ?? 0), 0) / totalCount)
+    : 0;
 
   const displayName = isLoaded && user
     ? user.fullName || user.firstName || (user.emailAddresses?.[0]?.emailAddress?.split('@')[0]) || 'Analyst'
@@ -57,25 +95,34 @@ export default function DashboardPage() {
                   Online
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-cyanAccent/10 text-cyanAccent text-[10px] font-mono flex items-center gap-1 border border-cyanAccent/20">
-                  <Database className="w-2.5 h-2.5" /> Supabase Synced
+                  <Database className="w-2.5 h-2.5" /> Supabase Synced ({totalCount} Dynamic Records)
                 </span>
               </div>
               <h1 className="text-2xl font-bold font-heading text-textPrimary">
                 Welcome back, {displayName}
               </h1>
               <p className="text-xs text-textSecondary">
-                Aegis AI has scanned <strong className="text-textPrimary">2,890 emails</strong> in the last 24 hours. 2 critical BEC threats intercepted.
+                Supabase database currently stores <strong className="text-textPrimary font-mono">{totalCount} analyzed emails</strong>. {flaggedCount} high-risk threats flagged dynamically.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => fetchEmails(true)}
+                disabled={isRefreshing}
+                className="p-2.5 rounded-xl bg-surfaceSecondary border border-borderSubtle hover:border-cyanAccent/40 text-textSecondary hover:text-cyanAccent transition-all flex items-center gap-2 text-xs font-medium disabled:opacity-50"
+                title="Refresh Supabase records"
+              >
+                <RefreshCw className={`w-4 h-4 text-cyanAccent ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>Sync Supabase</span>
+              </button>
               <Link href="/upload">
                 <Button variant="primary" size="md" icon={<Zap className="w-4 h-4" />}>
                   Analyze New Email
                 </Button>
               </Link>
               <button
-                onClick={() => toast('SOC Audit Report Generated', 'Downloading PDF...', 'success')}
+                onClick={() => toast('SOC Audit Report Generated', `Exporting ${totalCount} records...`, 'success')}
                 className="p-2.5 rounded-xl bg-surfaceSecondary border border-borderSubtle hover:border-white/20 text-textSecondary hover:text-textPrimary transition-colors flex items-center gap-2 text-xs font-medium"
               >
                 <Download className="w-4 h-4 text-cyanAccent" /> Export Audit Log
@@ -88,62 +135,74 @@ export default function DashboardPage() {
             {/* Card 1 */}
             <Card hoverEffect glowColor="blue">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-textSecondary font-mono uppercase">Total Scanned (24h)</span>
+                <span className="text-xs text-textSecondary font-mono uppercase">Total Ingested in Supabase</span>
                 <div className="p-2 rounded-xl bg-primaryBlue/10 text-primaryBlue">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-4 text-3xl font-bold font-heading text-textPrimary">2,890</div>
+              <div className="mt-4 text-3xl font-bold font-heading text-textPrimary">
+                {isLoading ? '...' : totalCount}
+              </div>
               <div className="mt-2 flex items-center justify-between text-xs">
                 <span className="text-successGreen font-mono font-bold flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3" /> +14.2%
+                  <TrendingUp className="w-3 h-3" /> Dynamic
                 </span>
-                <span className="text-textSecondary text-[11px]">vs previous day</span>
+                <span className="text-textSecondary text-[11px]">Real user inputs</span>
               </div>
             </Card>
 
             {/* Card 2 */}
             <Card hoverEffect glowColor="red">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-textSecondary font-mono uppercase">Phishing & BEC Flagged</span>
+                <span className="text-xs text-textSecondary font-mono uppercase">Flagged Threats</span>
                 <div className="p-2 rounded-xl bg-dangerRed/10 text-dangerRed">
                   <ShieldAlert className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-4 text-3xl font-bold font-heading text-dangerRed">426</div>
+              <div className="mt-4 text-3xl font-bold font-heading text-dangerRed">
+                {isLoading ? '...' : flaggedCount}
+              </div>
               <div className="mt-2 flex items-center justify-between text-xs">
-                <span className="text-dangerRed font-mono font-bold">14.7% threat rate</span>
-                <span className="text-textSecondary text-[11px]">Quarantined</span>
+                <span className="text-dangerRed font-mono font-bold">
+                  {totalCount > 0 ? `${Math.round((flaggedCount / totalCount) * 100)}% risk rate` : '0%'}
+                </span>
+                <span className="text-textSecondary text-[11px]">Score ≥ 50</span>
               </div>
             </Card>
 
             {/* Card 3 */}
             <Card hoverEffect glowColor="purple">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-textSecondary font-mono uppercase">Avg Organization Risk</span>
+                <span className="text-xs text-textSecondary font-mono uppercase">Avg Threat Risk Index</span>
                 <div className="p-2 rounded-xl bg-purpleAccent/10 text-purpleAccent">
                   <Brain className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-4 text-3xl font-bold font-heading text-purpleAccent">34.2 / 100</div>
+              <div className="mt-4 text-3xl font-bold font-heading text-purpleAccent">
+                {isLoading ? '...' : `${avgRisk} / 100`}
+              </div>
               <div className="mt-2 flex items-center justify-between text-xs">
-                <span className="text-successGreen font-mono font-bold">Low Exposure</span>
-                <span className="text-textSecondary text-[11px]">Updated 5m ago</span>
+                <span className={avgRisk >= 50 ? 'text-dangerRed font-mono font-bold' : 'text-successGreen font-mono font-bold'}>
+                  {avgRisk >= 75 ? 'Critical Level' : avgRisk >= 50 ? 'Elevated Exposure' : 'Low Exposure'}
+                </span>
+                <span className="text-textSecondary text-[11px]">Computed dynamically</span>
               </div>
             </Card>
 
             {/* Card 4 */}
             <Card hoverEffect glowColor="cyan">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-textSecondary font-mono uppercase">AI Detection Accuracy</span>
+                <span className="text-xs text-textSecondary font-mono uppercase">Safe / Verified Clean</span>
                 <div className="p-2 rounded-xl bg-cyanAccent/10 text-cyanAccent">
                   <Radio className="w-4 h-4 animate-pulse" />
                 </div>
               </div>
-              <div className="mt-4 text-3xl font-bold font-heading text-cyanAccent">99.82%</div>
+              <div className="mt-4 text-3xl font-bold font-heading text-cyanAccent">
+                {isLoading ? '...' : safeCount}
+              </div>
               <div className="mt-2 flex items-center justify-between text-xs">
-                <span className="text-cyanAccent font-mono font-bold">0 False Positives</span>
-                <span className="text-textSecondary text-[11px]">Model v4.9</span>
+                <span className="text-cyanAccent font-mono font-bold">Score &lt; 40</span>
+                <span className="text-textSecondary text-[11px]">Database verified</span>
               </div>
             </Card>
           </div>
@@ -155,9 +214,17 @@ export default function DashboardPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>
-                    <FileCheck2 className="w-5 h-5 text-primaryBlue" /> Recent Threat Scans
+                    <FileCheck2 className="w-5 h-5 text-primaryBlue" /> Dynamic Supabase Threat Scans
                   </CardTitle>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => fetchEmails(true)}
+                      disabled={isRefreshing}
+                      className="p-1.5 rounded-lg bg-surfaceSecondary hover:bg-surface border border-borderSubtle text-textSecondary hover:text-cyanAccent transition-all text-xs"
+                      title="Sync table from Supabase"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </button>
                     <Link href="/upload">
                       <Button variant="ghost" size="sm" icon={<Zap className="w-3.5 h-3.5 text-purpleAccent" />}>
                         New Analysis
@@ -171,39 +238,85 @@ export default function DashboardPage() {
                     <thead>
                       <tr className="border-b border-borderSubtle text-[11px] font-mono text-textSecondary uppercase">
                         <th className="pb-3 font-medium">Timestamp</th>
-                        <th className="pb-3 font-medium">Sender & Domain</th>
+                        <th className="pb-3 font-medium">Sender & Database Source</th>
                         <th className="pb-3 font-medium">Subject</th>
                         <th className="pb-3 font-medium">Risk Score</th>
                         <th className="pb-3 font-medium text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-borderSubtle/50 text-xs">
-                      {sampleList.map((scan) => (
-                        <tr key={scan.id} className="hover:bg-white/5 transition-colors group">
-                          <td className="py-4 font-mono text-textSecondary text-[11px]">
-                            {scan.scanTimestamp.substring(11, 16)} UTC
-                          </td>
-                          <td className="py-4 font-medium text-textPrimary">
-                            <div>{scan.senderName}</div>
-                            <div className="text-[11px] text-textSecondary font-mono">{scan.senderEmail}</div>
-                          </td>
-                          <td className="py-4 text-textSecondary max-w-xs truncate">
-                            {scan.subject}
-                          </td>
-                          <td className="py-4">
-                            <Badge level={scan.riskLevel}>
-                              {scan.riskScore}/100
-                            </Badge>
-                          </td>
-                          <td className="py-4 text-right">
-                            <Link href={`/results/${scan.id}`}>
-                              <button className="px-3 py-1.5 rounded-lg bg-surfaceSecondary border border-borderSubtle hover:border-primaryBlue/40 text-textPrimary text-xs font-semibold flex items-center gap-1 ml-auto group-hover:bg-primaryBlue group-hover:text-white transition-all">
-                                View <ChevronRight className="w-3.5 h-3.5" />
-                              </button>
-                            </Link>
+                      {isLoading ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-textSecondary font-mono">
+                            <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-cyanAccent" />
+                            Loading dynamic emails from Supabase...
                           </td>
                         </tr>
-                      ))}
+                      ) : dbEmails.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-textSecondary">
+                            <div className="max-w-sm mx-auto space-y-3">
+                              <Database className="w-8 h-8 text-cyanAccent/40 mx-auto" />
+                              <p className="font-medium text-textPrimary">No emails stored in Supabase yet</p>
+                              <p className="text-xs text-textSecondary">
+                                Submit or parse any email in the Workbench to see dynamic records appear here.
+                              </p>
+                              <Link href="/upload">
+                                <Button variant="primary" size="sm" icon={<Zap className="w-3.5 h-3.5" />}>
+                                  Analyze Email Now
+                                </Button>
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        dbEmails.map((email) => {
+                          const dateObj = new Date(email.createdAt);
+                          const timeStr = !isNaN(dateObj)
+                            ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : 'Recent';
+                          const dateStr = !isNaN(dateObj)
+                            ? dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })
+                            : '';
+                          const score = email.riskScore ?? 0;
+                          const level = email.classification || (score >= 75 ? 'CRITICAL' : score >= 50 ? 'HIGH' : score >= 25 ? 'MEDIUM' : 'LOW');
+
+                          return (
+                            <tr key={email.id} className="hover:bg-white/5 transition-colors group">
+                              <td className="py-4 font-mono text-textSecondary text-[11px] whitespace-nowrap">
+                                <div>{timeStr}</div>
+                                <div className="text-[10px] text-textSecondary/60">{dateStr}</div>
+                              </td>
+                              <td className="py-4 font-medium text-textPrimary">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold">{email.sender?.split('@')[0] || 'Dynamic User'}</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-cyanAccent/10 text-cyanAccent text-[9px] font-mono border border-cyanAccent/20">
+                                    Supabase
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-textSecondary font-mono truncate max-w-xs" title={email.sender}>
+                                  {email.sender}
+                                </div>
+                              </td>
+                              <td className="py-4 text-textSecondary max-w-xs truncate font-medium" title={email.subject}>
+                                {email.subject || '(No Subject Header)'}
+                              </td>
+                              <td className="py-4">
+                                <Badge level={level}>
+                                  {score}/100
+                                </Badge>
+                              </td>
+                              <td className="py-4 text-right">
+                                <Link href={`/results/${email.id}`}>
+                                  <button className="px-3 py-1.5 rounded-lg bg-surfaceSecondary border border-borderSubtle hover:border-primaryBlue/40 text-textPrimary text-xs font-semibold flex items-center gap-1 ml-auto group-hover:bg-primaryBlue group-hover:text-white transition-all">
+                                    View <ChevronRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>

@@ -1,4 +1,5 @@
 import { generateAiAnalysis, buildEvidencePackage } from '../../../lib/aiAnalysis.js';
+import { autoPersistEmailToSupabase } from '../../../lib/emailPersistence.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,11 +85,35 @@ export async function POST(request) {
 
     const aiResult = await generateAiAnalysis(emailData, options);
 
+    // Automatically record in Supabase database
+    let savedRecord = null;
+    try {
+      const sender = emailData.metadata?.from || 'analysis@workbench.internal';
+      const subject = emailData.metadata?.subject || 'Forensic AI Threat Evaluation';
+      const bodyText = emailData.body?.text || emailData.body?.html || '';
+      const score = emailData.risk?.totalScore ?? 0;
+      const level = emailData.risk?.level || (score >= 75 ? 'CRITICAL' : score >= 50 ? 'HIGH' : score >= 25 ? 'MEDIUM' : 'LOW');
+      const expl = aiResult.explanation || aiResult.summary || `Forensic evaluation with risk score ${score}/100.`;
+
+      savedRecord = await autoPersistEmailToSupabase({
+        sender,
+        subject,
+        body: bodyText,
+        riskScore: score,
+        classification: level,
+        explanation: expl,
+        emailId: body.emailId || null
+      });
+    } catch (dbErr) {
+      console.warn('[API /api/ai-analysis] Notice: Auto-persist to Supabase skipped:', dbErr?.message || dbErr);
+    }
+
     return Response.json(
       {
         success: true,
         aiAnalysis: aiResult,
-        data: aiResult
+        data: aiResult,
+        savedRecord
       },
       { status: 200 }
     );

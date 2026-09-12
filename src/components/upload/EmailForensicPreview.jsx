@@ -33,14 +33,15 @@ import {
   RefreshCw,
   ExternalLink,
   Bot,
-  Zap
+  Zap,
+  Database
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useToast } from '../ui/Toast';
 import WhyThisScore from '../analysis/WhyThisScore';
 import { AIContentDetectorCard } from '../analysis/AIContentDetectorCard';
 
-export function EmailForensicPreview({ emailData }) {
+export function EmailForensicPreview({ emailData, savedDbRecord = null, onSaveToDatabase = null }) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('metadata'); // 'metadata' | 'identity' | 'transmission' | 'auth' | 'artifacts' | 'body' | 'mime' | 'attachments' | 'headers' | 'threatIntel' | 'aiAnalysis'
   const [copied, setCopied] = useState(false);
@@ -119,6 +120,9 @@ export function EmailForensicPreview({ emailData }) {
         toast('AI Analysis Notice', errorMsg, 'error');
       } else {
         setCurrentAiAnalysis(data.aiAnalysis);
+        if (onSaveToDatabase) {
+          onSaveToDatabase(data.aiAnalysis);
+        }
         toast(
           data.aiAnalysis?.fallbackEngaged ? 'Forensic Synthesis Ready' : 'AI Analysis Complete',
           data.aiAnalysis?.fallbackEngaged
@@ -215,10 +219,22 @@ export function EmailForensicPreview({ emailData }) {
       {/* Overview Status Banner */}
       <div className="glass-card p-6 border border-white/10 rounded-3xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-borderSubtle">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primaryBlue/10 border border-primaryBlue/30 text-primaryBlue text-xs font-mono font-semibold">
               <CheckCircle2 className="w-3.5 h-3.5 text-successGreen" /> Normalized Forensic Email Object
             </span>
+            {savedDbRecord ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-successGreen/20 text-successGreen border border-successGreen/30 text-xs font-mono">
+                <Database className="w-3 h-3" /> Supabase: {savedDbRecord.id.slice(0, 8)}...
+              </span>
+            ) : onSaveToDatabase ? (
+              <button
+                onClick={onSaveToDatabase}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surfaceSecondary border border-primaryBlue/40 text-cyanAccent hover:bg-primaryBlue/10 text-xs font-mono transition-all"
+              >
+                <Database className="w-3 h-3" /> Save to Supabase
+              </button>
+            ) : null}
             <span className="text-xs font-mono text-textSecondary">
               Raw Size: {(raw.size / 1024).toFixed(2)} KB ({raw.size} bytes)
             </span>

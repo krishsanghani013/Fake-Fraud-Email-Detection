@@ -1,4 +1,5 @@
 import { detectAiGeneratedContent } from '../../../lib/aiContentDetection.js';
+import { autoPersistEmailToSupabase } from '../../../lib/emailPersistence.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,10 +62,29 @@ export async function POST(request) {
 
     const detection = await detectAiGeneratedContent(text, options);
 
+    // Automatically record in Supabase database
+    let savedRecord = null;
+    try {
+      const verdict = detection.verdict || 'AI_EVALUATED';
+      const score = detection.threatScore ?? (detection.overallAiLikelihood ?? 0);
+      const expl = `Dual-Matrix AI & Threat Evaluation: ${verdict}. AI likelihood: ${detection.overallAiLikelihood}%, threat: ${detection.threatScore}%.`;
+      savedRecord = await autoPersistEmailToSupabase({
+        sender: 'ai-detector@workbench.internal',
+        subject: subject || 'AI Content Inspection',
+        body: text,
+        riskScore: score,
+        classification: verdict,
+        explanation: expl
+      });
+    } catch (dbErr) {
+      console.warn('[API /api/detect-ai-content] Auto-persist skipped:', dbErr?.message || dbErr);
+    }
+
     return Response.json(
       {
         success: true,
-        detection
+        detection,
+        savedRecord
       },
       { status: 200 }
     );
