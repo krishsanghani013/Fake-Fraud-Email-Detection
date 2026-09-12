@@ -1,39 +1,65 @@
-# Aegis Forensics — Phase 1: Core Email Ingestion & RFC 5322 Parsing
+# Aegis Forensics — Email Forensics Engine
 
-A standard-compliant, zero-retention RFC 5322 email ingestion, validation, and parsing subsystem for email forensics.
-
----
-
-## 1. Parser Architecture
-
-```
-RAW EMAIL (.eml / Text)
-         ↓
-  INPUT VALIDATION (validateEmailInput)
-         ↓
-RFC 5322 HEADER PARSING (CRLF/LF, Unfolding, Duplicate Preservation)
-         ↓
-  HEADER EXTRACTION (From, To, Subject, Date, Message-ID, etc.)
-         ↓
-  MIME STRUCTURE PARSING (multipart/mixed, multipart/alternative, multipart/related)
-         ↓
-  BODY & ATTACHMENT METADATA EXTRACTION
-         ↓
-NORMALIZED EMAIL OBJECT
-         ↓
-FRONTEND INSPECTION UI & BACKEND API (POST /api/parse-eml)
-```
-
-- **Standards Adherence**: Parses strictly according to RFC 5322. Unfolds continuation lines starting with spaces or tabs. Supports both `\r\n` (CRLF) and `\n` (LF) line delimiters.
-- **Privacy & Security**: Zero third-party network requests. Operates locally in client memory and standard backend runtime. Never executes scripts in HTML content.
-- **No Speculative Data**: Does not invent threat intelligence, risk scores, or AI classifications in Phase 1. Every extracted value originates solely from the user's provided email.
+A standard-compliant, zero-retention RFC 5322 email ingestion, validation, and forensic artifact extraction subsystem.
 
 ---
 
-## 2. Canonical Normalized Email Object
+## 1. System Pipeline Architecture
 
+```
+                 RAW EMAIL (.eml / Text)
+                            │
+                            ▼
+               ┌────────────────────────┐
+               │    INPUT VALIDATION    │
+               │   (validateEmailInput) │
+               └────────────┬───────────┘
+                            │
+                            ▼
+               ┌────────────────────────┐
+               │    RFC 5322 PARSER     │
+               │  (Headers, MIME, Body) │
+               └────────────┬───────────┘
+                            │
+                            ▼
+                 NORMALIZED EMAIL OBJECT
+                            │
+                            ▼
+               ┌────────────────────────┐
+               │   ARTIFACT EXTRACTOR   │
+               │   (emailArtifacts.js)  │
+               └────────────┬───────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+      URLs                 IPs               Domains
+(Text, HTML, href)  (IPv4 & IPv6 Valid)   (Subdomains Preserved)
+        │
+        ▼
+URL NORMALIZATION
+(:80/:443 port removal,
+ lowercase scheme & host)
+
+                            +
+
+                     SENDER DOMAINS
+                     ├── From
+                     ├── Reply-To
+                     └── Return-Path
+                            │
+                            ▼
+                 CANONICAL ARTIFACT MODEL
+                            │
+                            ▼
+          UI INSPECTION VIEW & POST /api/parse-eml
+```
+
+---
+
+## 2. Canonical Data Models
+
+### Normalized Email Object (Phase 1)
 Every parsed email produces the exact canonical structure:
-
 ```json
 {
   "metadata": {
@@ -73,45 +99,95 @@ Every parsed email produces the exact canonical structure:
       }
     ]
   },
-  "attachments": [
-    {
-      "filename": "invoice.pdf",
-      "contentType": "application/pdf",
-      "size": 18,
-      "contentDisposition": "attachment"
-    }
-  ],
+  "attachments": [],
   "raw": {
     "size": 1024
+  },
+  "artifacts": { ... }
+}
+```
+
+### Canonical Artifact Object (Phase 2)
+Located under `data.artifacts`:
+```json
+{
+  "urls": [
+    {
+      "original": "HTTPS://Example.COM:443/Login.",
+      "normalized": "https://example.com/Login",
+      "domain": "example.com",
+      "source": "html_href"
+    }
+  ],
+  "ips": [
+    {
+      "address": "203.0.113.10",
+      "version": 4,
+      "source": "received_header"
+    },
+    {
+      "address": "2001:db8::1",
+      "version": 6,
+      "source": "received_header"
+    }
+  ],
+  "domains": [
+    {
+      "original": "Example.COM",
+      "normalized": "example.com",
+      "source": "url"
+    },
+    {
+      "original": "example.com",
+      "normalized": "example.com",
+      "source": "sender"
+    }
+  ],
+  "senderDomains": {
+    "from": ["example.com"],
+    "replyTo": ["external.example"],
+    "returnPath": ["example.com"]
   }
 }
 ```
 
 ---
 
-## 3. Supported Headers & MIME Structures
+## 3. Extraction & Normalization Specifications
 
-### Extracted Headers
-- `From`, `To` (array), `Cc` (array), `Bcc` (array), `Reply-To` (array), `Return-Path`
-- `Subject`, `Date`, `Message-ID`, `In-Reply-To`, `References` (array)
-- `MIME-Version`, `Content-Type`, `Content-Transfer-Encoding`
-- `headers.all`: Complete list of all original header `{ name, value }` pairs in original order, including duplicate headers such as multiple `Received` hops.
+### URL Extraction & Normalization
+- **Sources**: Plain-text body, HTML body, and HTML `<a href="...">` attributes (tagged with `source: 'html_href'`).
+- **Punctuation Handling**: Trims surrounding quotes, angle brackets, parentheses, and trailing sentence punctuation (`.`, `,`, `;`, `:`, `!`, `?`).
+- **Normalization**:
+  - Lowercases scheme (`http://`, `https://`).
+  - Lowercases hostname.
+  - Strips default HTTP port `:80` and HTTPS port `:443`.
+  - Removes trailing dot from hostname (`example.com.` → `example.com`).
+  - Preserves path, query parameters, and fragments verbatim.
+- **Deduplication**: Deterministically deduplicates by `normalized` URL while preserving the first observed `original` and `source`.
 
-### Supported MIME Structures
-- `text/plain`
-- `text/html`
-- `multipart/mixed`
-- `multipart/alternative`
-- `multipart/related`
-- Nested multi-level container structures.
+### IP Address Extraction & Validation
+- **Source**: `Received` transmission headers.
+- **IPv4 Validation**: Strict octet range validation (`0–255` per octet). Rejects invalid addresses (e.g. `999.999.999.999`) and ordinary numeric sequences.
+- **IPv6 Validation**: Validates 16-bit hex groups and compressed `::` syntax. Rejects false positives such as ordinary timestamps (`10:30:45`).
+- **Deduplication**: Deduplicated by clean IP address.
+
+### Domain & Sender-Domain Extraction
+- **Domains from URLs**: Extracts hostnames, preserving complete subdomains (e.g., `login.accounts.example.com`).
+- **Sender Domains**:
+  - `from`: Extracted from the `From:` header email address.
+  - `replyTo`: Extracted from `Reply-To:` header email addresses.
+  - `returnPath`: Extracted from `Return-Path:` header email address.
+  - Strictly evidence-based: does NOT infer `Reply-To` from `From` or `Return-Path` from `From`.
 
 ---
 
-## 4. Error Handling & Validation
+## 4. Security & Privacy Protections
 
-- **Input Validation**: Rejects empty strings, whitespace, or strings lacking recognizable email headers with clear error messages (`{ success: false, error: "..." }`).
-- **Partial/Malformed Emails**: Safely extracts readable headers and body; flags missing boundaries with non-crashing warnings (`warnings: [...]`).
-- **No Stack Traces**: API and UI return sanitized error summaries without exposing server internals.
+- **Untrusted Input**: All email contents, HTML, and extracted artifacts are treated as untrusted.
+- **No Remote Network Requests**: Zero external HTTP queries, zero DNS lookups, zero VirusTotal/URLhaus lookups.
+- **No JavaScript Execution**: HTML emails are never executed in the application DOM or browser context.
+- **Zero Hallucination / Speculation**: No risk scores, no threat flags, no malicious badges. Only verifiable artifacts found directly within the email are extracted.
 
 ---
 
@@ -121,14 +197,49 @@ Every parsed email produces the exact canonical structure:
 - **Request Body**:
   ```json
   {
-    "emlContent": "From: sender@example.com\r\nTo: dest@example.com\r\n\r\nHello"
+    "emlContent": "From: sender@example.com\r\nTo: dest@example.com\r\n\r\nVisit https://example.com:443/login."
   }
   ```
 - **Response** (HTTP 200):
   ```json
   {
     "success": true,
-    "data": { ... },
+    "data": {
+      "metadata": { ... },
+      "headers": { ... },
+      "body": { ... },
+      "mime": { ... },
+      "attachments": [ ... ],
+      "raw": { "size": 128 },
+      "artifacts": {
+        "urls": [
+          {
+            "original": "https://example.com:443/login",
+            "normalized": "https://example.com/login",
+            "domain": "example.com",
+            "source": "body"
+          }
+        ],
+        "ips": [],
+        "domains": [
+          {
+            "original": "example.com",
+            "normalized": "example.com",
+            "source": "url"
+          },
+          {
+            "original": "example.com",
+            "normalized": "example.com",
+            "source": "sender"
+          }
+        ],
+        "senderDomains": {
+          "from": ["example.com"],
+          "replyTo": [],
+          "returnPath": []
+        }
+      }
+    },
     "warnings": []
   }
   ```
@@ -143,22 +254,37 @@ Every parsed email produces the exact canonical structure:
 
 ---
 
-## 6. Test Suite (10 Deterministic Cases)
+## 6. Test Suite Verification
 
-Run the test suite with:
+Run all test suites with:
 ```bash
 npm test
 ```
 
-### Covered Test Cases:
-1. **TEST 1**: Simple plain-text email.
-2. **TEST 2**: HTML email.
-3. **TEST 3**: Multipart/alternative email (extracts text/plain and text/html).
-4. **TEST 4**: Email with attachment metadata (filename, content type, exact base64 decoded size).
-5. **TEST 5**: Email containing folded/multiline headers.
-6. **TEST 6**: Email containing duplicate headers (e.g. multiple `Received:` hops).
-7. **TEST 7**: Email using CRLF (`\r\n`) line endings.
-8. **TEST 8**: Email using LF (`\n`) line endings.
-9. **TEST 9**: Email with missing optional headers.
-10. **TEST 10**: Malformed email handling (empty string, headerless input, missing boundary).
-11. **TEST 11**: Backend API route verification (`POST /api/parse-eml`).
+### Covered Test Cases (25 Total Assertions):
+#### Phase 1: Core RFC 5322 & MIME
+1. Simple plain-text email.
+2. HTML email.
+3. Multipart/alternative email (extracts text/plain and text/html).
+4. Email with attachment metadata (filename, content type, exact base64 decoded size).
+5. Email containing folded/multiline headers.
+6. Email containing duplicate headers (multiple `Received:` hops).
+7. Email using CRLF (`\r\n`) line endings.
+8. Email using LF (`\n`) line endings.
+9. Email with missing optional headers.
+10. Malformed email handling (empty string, headerless input, missing boundary).
+11. Backend API route verification (`POST /api/parse-eml`).
+
+#### Phase 2: Artifact Extraction & Normalization
+12. Single HTTP URL extraction.
+13. HTTPS URL extraction.
+14. Multiple distinct URLs extraction.
+15. Duplicate URL deduplication between text and HTML.
+16. HTML `<a href="...">` extraction with source tagging.
+17. URL normalization (default ports 80/443 removal, scheme/host lowercasing, path preservation).
+18. IPv4 extraction from `Received` headers.
+19. IPv6 extraction from `Received` headers.
+20. Sender domains extraction (`From`, `Reply-To`, `Return-Path`).
+21. Invalid IP rejection (`999.999.999.999`, timestamp `10:30:45`).
+22. Multiple domains with subdomain preservation (`login.example.com`, `mail.example.com`).
+23. URL punctuation cleanup (stripping trailing periods and commas).

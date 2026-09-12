@@ -3,8 +3,10 @@
  * 
  * Standards-compliant, deterministic parser for RFC 5322 and basic MIME messages.
  * Does NOT invent data, does NOT execute AI/risk scoring/threat intelligence.
- * Produces a single canonical normalized email structure.
  */
+
+import { extractArtifacts } from './emailArtifacts.js';
+
 
 /**
  * Validates raw email input before parsing.
@@ -409,7 +411,32 @@ export function parseRawEmail(rawInput) {
       attachments: attachments || [],
       raw: {
         size: rawInput.length
-      }
+      },
+      artifacts: extractArtifacts({
+        metadata: {
+          from: from || null,
+          to: to || [],
+          cc: cc || [],
+          bcc: bcc || [],
+          replyTo: replyTo || [],
+          returnPath: returnPath || null,
+          subject: subject || null,
+          date: date || null,
+          messageId: messageId || null,
+          inReplyTo: inReplyTo || null,
+          references: references || [],
+          mimeVersion: mimeVersion || null,
+          contentType: contentType || null,
+          contentTransferEncoding: contentTransferEncoding || null
+        },
+        headers: {
+          all: allHeaders
+        },
+        body: {
+          text: textBody || '',
+          html: htmlBody || ''
+        }
+      })
     };
 
     return {
